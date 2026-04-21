@@ -1,0 +1,225 @@
+{
+  "name": "ZenithMoto — Génération Posts Réseaux Sociaux",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "zm-sched-01",
+      "name": "Chaque jour à 9h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const fleet = [\n  {name:\"Tracer 700 2024\",type:\"roadster sport\",style:\"aventure liberté\"},\n  {name:\"X-ADV 2025\",type:\"adventure scooter\",style:\"exploration urbaine\"},\n  {name:\"T-Max\",type:\"scooter premium\",style:\"luxe prestige\"},\n  {name:\"X-Max 300\",type:\"scooter\",style:\"polyvalence élégance\"},\n  {name:\"X-Max 125\",type:\"scooter accessible\",style:\"liberté urbaine\"}\n];\nconst plats = [\n  {p:\"Instagram\",s:\"esthétique lifestyle, 3-4 phrases percutantes, 15 hashtags FR/CH, CTA réserver zenithmoto.ch\"},\n  {p:\"TikTok\",s:\"punchy Gen-Z, 1 accroche choc + 3 phrases max + CTA, plein emojis\"},\n  {p:\"Facebook\",s:\"informatif professionnel, présentation + avantages + à partir CHF 120/jour + 6 hashtags + CTA zenithmoto.ch\"}\n];\nconst items = [];\nfor (const m of fleet) {\n  for (const {p,s} of plats) {\n    items.push({json:{moto:m.name, platform:p,\n      prompt:\"Community manager ZenithMoto Bienne. Post \"+p+\" en français pour \"+m.name+\" (\"+m.type+\", \"+m.style+\"). Style: \"+s+\".\",\n    }});\n  }\n}\nreturn items;"
+      },
+      "id": "zm-code-01",
+      "name": "Préparer 15 Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "zm-split-01",
+      "name": "Boucle 1 par 1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={\"contents\":[{\"parts\":[{\"text\":\"{{ $json.prompt }}\"}]}]}",
+        "options": {}
+      },
+      "id": "zm-http-01",
+      "name": "Gemini AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.item.json.candidates?.[0]?.content?.parts?.[0]?.text || \"Erreur génération\";\nconst loop = $(\"Boucle 1 par 1\").item.json;\nreturn [{json: {moto: loop.moto, platform: loop.platform, post: text}}];"
+      },
+      "id": "zm-extract-01",
+      "name": "Extraire Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "id": "zm-agg-01",
+      "name": "Agréger Tous Posts",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const posts = $input.item.json.data;\nlet html = \"<h2 style=\\\"color:#1a1a2e\\\">Posts ZenithMoto — \" + new Date().toLocaleDateString(\"fr-CH\") + \"</h2>\";\nfor (const p of posts) {\n  html += \"<hr><h3>\" + p.platform + \" — \" + p.moto + \"</h3><p>\" + p.post.replace(/\\n/g,\"<br>\") + \"</p>\";\n}\nreturn [{json: {html}}];"
+      },
+      "id": "zm-format-01",
+      "name": "Formater Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "zenithmoto.ch@gmail.com",
+        "toEmail": "zenithmoto.ch@gmail.com",
+        "subject": "📱 Posts ZenithMoto — Aujourd'hui",
+        "emailFormat": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "zm-email-01",
+      "name": "Envoyer Posts",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1780,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-zenithmoto",
+          "name": "ZenithMoto Gmail SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Chaque jour à 9h": {
+      "main": [
+        [
+          {
+            "node": "Préparer 15 Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Préparer 15 Prompts": {
+      "main": [
+        [
+          {
+            "node": "Boucle 1 par 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Boucle 1 par 1": {
+      "main": [
+        [
+          {
+            "node": "Gemini AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agréger Tous Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini AI": {
+      "main": [
+        [
+          {
+            "node": "Extraire Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire Post": {
+      "main": [
+        [
+          {
+            "node": "Boucle 1 par 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agréger Tous Posts": {
+      "main": [
+        [
+          {
+            "node": "Formater Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formater Email": {
+      "main": [
+        [
+          {
+            "node": "Envoyer Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Europe/Zurich"
+  },
+  "active": false
+}

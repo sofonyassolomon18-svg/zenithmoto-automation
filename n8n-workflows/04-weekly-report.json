@@ -1,0 +1,90 @@
+{
+  "name": "ZenithMoto — Rapport Hebdomadaire",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "zm-sched-04",
+      "name": "Lundi à 8h",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now=new Date();const w=now.toLocaleDateString(\"fr-CH\",{day:\"2-digit\",month:\"long\",year:\"numeric\"});const html=\"<div style=font-family:Arial,sans-serif><h2>Rapport ZenithMoto — \"+w+\"</h2><p>Posts générés, prospection effectuée, rappels actifs.</p><p>Généré le \"+now.toLocaleString(\"fr-CH\")+\"</p></div>\";return [{json:{html,subject:\"Rapport hebdo ZenithMoto — \"+w}}];"
+      },
+      "id": "zm-code-04",
+      "name": "Générer Rapport",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "zenithmoto.ch@gmail.com",
+        "toEmail": "zenithmoto.ch@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "emailFormat": "html",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "zm-email-04",
+      "name": "Envoyer Rapport",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        680,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-zenithmoto",
+          "name": "ZenithMoto Gmail SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Lundi à 8h": {
+      "main": [
+        [
+          {
+            "node": "Générer Rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Générer Rapport": {
+      "main": [
+        [
+          {
+            "node": "Envoyer Rapport",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Europe/Zurich"
+  },
+  "active": false
+}

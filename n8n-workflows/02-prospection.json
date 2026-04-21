@@ -1,0 +1,246 @@
+{
+  "name": "ZenithMoto — Prospection Partenaires",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "zm-sched-02",
+      "name": "Lundi 9h30",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const queries=[\"hotel Bienne\",\"auberge Bienne\",\"office tourisme Bienne\",\"agence voyage Biel\",\"conciergerie Bienne\"];\nreturn queries.map(q=>({json:{query:q}}));"
+      },
+      "id": "zm-queries-02",
+      "name": "Définir Recherches",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "zm-split-02",
+      "name": "Boucle Recherches",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://maps.googleapis.com/maps/api/place/textsearch/json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "key",
+              "value": "={{ $env.GOOGLE_MAPS_API_KEY }}"
+            },
+            {
+              "name": "language",
+              "value": "fr"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "zm-maps-02",
+      "name": "Google Maps",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const r=$input.item.json.results||[];\nreturn r.map(p=>({json:{name:p.name,address:p.formatted_address||\"\",email:\"info@\"+p.name.toLowerCase().replace(/[^a-z0-9]/g,\"\").substring(0,20)+\".ch\"}}));"
+      },
+      "id": "zm-extract-02",
+      "name": "Extraire Partenaires",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "zm-split2-02",
+      "name": "Boucle Partenaires",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "zenithmoto.ch@gmail.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "=Partenariat ZenithMoto × {{ $json.name }}",
+        "emailFormat": "html",
+        "message": "<p>Bonjour,</p><p>ZenithMoto, location motos Bienne. Tarifs préférentiels + commission pour vos clients. On en discute ?</p><p>ZenithMoto · zenithmoto.ch</p>",
+        "options": {}
+      },
+      "id": "zm-email-02",
+      "name": "Email Partenariat",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1560,
+        300
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-zenithmoto",
+          "name": "ZenithMoto Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "zm-wait-02",
+      "name": "Pause 3s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1780,
+        300
+      ],
+      "webhookId": "zm-wait-pause-02"
+    }
+  ],
+  "connections": {
+    "Lundi 9h30": {
+      "main": [
+        [
+          {
+            "node": "Définir Recherches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Définir Recherches": {
+      "main": [
+        [
+          {
+            "node": "Boucle Recherches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Boucle Recherches": {
+      "main": [
+        [
+          {
+            "node": "Google Maps",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Google Maps": {
+      "main": [
+        [
+          {
+            "node": "Extraire Partenaires",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraire Partenaires": {
+      "main": [
+        [
+          {
+            "node": "Boucle Partenaires",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Boucle Partenaires": {
+      "main": [
+        [
+          {
+            "node": "Email Partenariat",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Email Partenariat": {
+      "main": [
+        [
+          {
+            "node": "Pause 3s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause 3s": {
+      "main": [
+        [
+          {
+            "node": "Boucle Partenaires",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Europe/Zurich"
+  },
+  "active": false
+}

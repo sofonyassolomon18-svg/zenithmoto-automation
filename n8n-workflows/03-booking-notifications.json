@@ -1,0 +1,241 @@
+{
+  "name": "ZenithMoto — Notifications Réservations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "zenithmoto-booking",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "zm-webhook-03",
+      "name": "Webhook Lovable",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "zm-lovable-booking"
+    },
+    {
+      "parameters": {
+        "mode": "rules",
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "rightValue": "booking_created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Confirmation"
+            },
+            {
+              "conditions": {
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.event }}",
+                    "rightValue": "booking_completed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "Suivi"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "zm-switch-03",
+      "name": "Type Événement",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "zenithmoto.ch@gmail.com",
+        "toEmail": "={{ $json.body.booking.client_email }}",
+        "subject": "=✅ Réservation confirmée — {{ $json.body.booking.motorcycle }} · ZenithMoto",
+        "emailFormat": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:580px\"><div style=\"background:#1a1a2e;padding:20px 28px;border-radius:8px 8px 0 0\"><span style=\"color:#fff;font-size:20px;font-weight:800\">ZenithMoto</span><span style=\"color:#f0a500\">.</span></div><div style=\"background:#fff;padding:28px;border:1px solid #eee;border-top:none\"><h2 style=\"color:#1a1a2e\">Réservation confirmée 🎉</h2><p>Bonjour <strong>{{ $json.body.booking.client_name }}</strong>,</p><div style=\"background:#f8f8f8;border-radius:8px;padding:16px;margin:16px 0\"><p>🏍️ <strong>{{ $json.body.booking.motorcycle }}</strong></p><p>📅 Du {{ $json.body.booking.start_date }} au {{ $json.body.booking.end_date }}</p><p>💰 CHF {{ $json.body.booking.price }}</p></div><p>Permis de conduire + pièce d'identité requis. Casque fourni.</p><p style=\"color:#666;font-size:13px\">ZenithMoto · zenithmoto.ch</p></div></div>",
+        "options": {}
+      },
+      "id": "zm-confirm-03",
+      "name": "Email Confirmation",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        160
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-zenithmoto",
+          "name": "ZenithMoto Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 24,
+        "unit": "hours"
+      },
+      "id": "zm-wait-03",
+      "name": "Attendre 24h",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        940,
+        160
+      ],
+      "webhookId": "zm-wait-24h-03"
+    },
+    {
+      "parameters": {
+        "fromEmail": "zenithmoto.ch@gmail.com",
+        "toEmail": "={{ $json.body.booking.client_email }}",
+        "subject": "=⏰ C'est demain ! {{ $json.body.booking.motorcycle }} — ZenithMoto",
+        "emailFormat": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:580px\"><div style=\"background:#1a1a2e;padding:20px 28px;border-radius:8px 8px 0 0\"><span style=\"color:#fff;font-size:20px;font-weight:800\">ZenithMoto</span><span style=\"color:#f0a500\">.</span></div><div style=\"background:#fff;padding:28px;border:1px solid #eee;border-top:none\"><h2 style=\"color:#1a1a2e\">C'est demain ! 🏍️</h2><p>Bonjour <strong>{{ $json.body.booking.client_name }}</strong>, votre <strong>{{ $json.body.booking.motorcycle }}</strong> commence demain.</p><div style=\"background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:16px\"><p><strong>📋 N'oubliez pas :</strong> Permis de conduire · Pièce d'identité · Carte de crédit</p></div><p style=\"color:#666;font-size:13px\">ZenithMoto · zenithmoto.ch</p></div></div>",
+        "options": {}
+      },
+      "id": "zm-reminder-03",
+      "name": "Email Rappel J-1",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1180,
+        160
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-zenithmoto",
+          "name": "ZenithMoto Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "zenithmoto.ch@gmail.com",
+        "toEmail": "={{ $json.body.booking.client_email }}",
+        "subject": "=⭐ Merci {{ $json.body.booking.client_name }} — Votre avis compte !",
+        "emailFormat": "html",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:580px\"><div style=\"background:#1a1a2e;padding:20px 28px;border-radius:8px 8px 0 0\"><span style=\"color:#fff;font-size:20px;font-weight:800\">ZenithMoto</span><span style=\"color:#f0a500\">.</span></div><div style=\"background:#fff;padding:28px;border:1px solid #eee;border-top:none\"><h2 style=\"color:#1a1a2e\">Merci ! 🙏</h2><p>Bonjour <strong>{{ $json.body.booking.client_name }}</strong>, merci pour votre location de la <strong>{{ $json.body.booking.motorcycle }}</strong> !</p><p>Un avis Google prend 30 secondes et nous aide énormément :</p><div style=\"text-align:center;margin:24px 0\"><a href=\"https://www.google.com/search?q=ZenithMoto+Bienne+avis\" style=\"background:#f0a500;color:#1a1a2e;padding:14px 28px;border-radius:8px;font-weight:700;text-decoration:none\">⭐ Laisser un avis Google</a></div><p style=\"color:#666;font-size:13px\">ZenithMoto · zenithmoto.ch</p></div></div>",
+        "options": {}
+      },
+      "id": "zm-followup-03",
+      "name": "Email Suivi Avis",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        700,
+        460
+      ],
+      "credentials": {
+        "smtp": {
+          "id": "smtp-zenithmoto",
+          "name": "ZenithMoto Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{\"success\":true}"
+      },
+      "id": "zm-respond-03",
+      "name": "Répondre OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        940,
+        460
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Lovable": {
+      "main": [
+        [
+          {
+            "node": "Type Événement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Type Événement": {
+      "main": [
+        [
+          {
+            "node": "Email Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email Suivi Avis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Attendre 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attendre 24h": {
+      "main": [
+        [
+          {
+            "node": "Email Rappel J-1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Suivi Avis": {
+      "main": [
+        [
+          {
+            "node": "Répondre OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "timezone": "Europe/Zurich"
+  },
+  "active": false
+}
