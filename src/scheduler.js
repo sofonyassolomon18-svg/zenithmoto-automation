@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const axios = require('axios');
 const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
 const { checkAndSendReminders } = require('./notifications');
@@ -6,6 +7,15 @@ const { sendWeeklyReport } = require('./reports');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
+
+  // Keep-alive — ping /health toutes les 4 min pour éviter le sleep Railway
+  const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
+    : `http://localhost:${process.env.PORT || 3001}/health`;
+
+  cron.schedule('*/4 * * * *', async () => {
+    try { await axios.get(selfUrl, { timeout: 5000 }); } catch (_) {}
+  });
 
   // Génération contenu — tous les jours à 9h00
   cron.schedule('0 9 * * *', async () => {
