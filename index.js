@@ -35,3 +35,11 @@ main().catch(e => {
   console.error('\n❌ Erreur fatale:', e.message);
   process.exit(1);
 });
+
+// Prevent unhandled errors from crashing the server
+process.on('uncaughtException', (e) => {
+  console.error('[uncaughtException]', e.message);
+});
+process.on('unhandledRejection', (e) => {
+  console.error('[unhandledRejection]', e?.message || e);
+});
