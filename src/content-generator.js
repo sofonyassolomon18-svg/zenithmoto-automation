@@ -1,9 +1,9 @@
 require('dotenv').config();
-const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const path = require('path');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const FLEET = [
   { name: 'Tracer 700 2024', type: 'roadster sport', style: 'aventure et liberté sur route' },
@@ -37,17 +37,13 @@ Ton : chaleureux, professionnel, de confiance.`,
 };
 
 async function generatePost(moto, platform) {
-  const prompt = PLATFORM_PROMPTS[platform](moto);
-  const msg = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 600,
-    messages: [{ role: 'user', content: prompt }],
-  });
-  return msg.content[0].text;
+  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const result = await model.generateContent(PLATFORM_PROMPTS[platform](moto));
+  return result.response.text();
 }
 
 async function generateAllPosts() {
-  console.log('🤖 Génération des posts via Claude AI...\n');
+  console.log('🤖 Génération des posts via Gemini AI...\n');
   const date = new Date().toISOString().split('T')[0];
   const postsDir = path.join(__dirname, '..', 'posts');
 

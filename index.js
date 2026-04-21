@@ -6,7 +6,7 @@ const { startScheduler } = require('./src/scheduler');
 const PORT = process.env.PORT || process.env.WEBHOOK_PORT || 3001;
 
 function checkEnv() {
-  const required = ['ANTHROPIC_API_KEY', 'GOOGLE_MAPS_API_KEY', 'GMAIL_APP_PASSWORD', 'SMTP_EMAIL'];
+  const required = ['GEMINI_API_KEY', 'GOOGLE_MAPS_API_KEY', 'GMAIL_APP_PASSWORD', 'SMTP_EMAIL'];
   const missing = required.filter(k => !process.env[k]);
   if (missing.length) {
     console.error('❌ Variables manquantes dans .env:', missing.join(', '));
