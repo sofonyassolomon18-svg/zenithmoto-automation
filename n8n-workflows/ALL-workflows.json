@@ -1,0 +1,804 @@
+[
+  {
+    "name": "ZenithMoto — Génération Posts Réseaux Sociaux",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 9 * * *"
+              }
+            ]
+          }
+        },
+        "id": "zm-sched-01",
+        "name": "Chaque jour à 9h",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const fleet = [\n  {name:\"Tracer 700 2024\",type:\"roadster sport\",style:\"aventure liberté\"},\n  {name:\"X-ADV 2025\",type:\"adventure scooter\",style:\"exploration urbaine\"},\n  {name:\"T-Max\",type:\"scooter premium\",style:\"luxe prestige\"},\n  {name:\"X-Max 300\",type:\"scooter\",style:\"polyvalence élégance\"},\n  {name:\"X-Max 125\",type:\"scooter accessible\",style:\"liberté urbaine\"}\n];\nconst plats = [\n  {p:\"Instagram\",s:\"esthétique lifestyle, 3-4 phrases percutantes, 15 hashtags FR/CH, CTA réserver zenithmoto.ch\"},\n  {p:\"TikTok\",s:\"punchy Gen-Z, 1 accroche choc + 3 phrases max + CTA, plein emojis\"},\n  {p:\"Facebook\",s:\"informatif professionnel, présentation + avantages + à partir CHF 120/jour + 6 hashtags + CTA zenithmoto.ch\"}\n];\nconst items = [];\nfor (const m of fleet) {\n  for (const {p,s} of plats) {\n    items.push({json:{moto:m.name, platform:p,\n      prompt:\"Community manager ZenithMoto Bienne. Post \"+p+\" en français pour \"+m.name+\" (\"+m.type+\", \"+m.style+\"). Style: \"+s+\".\",\n    }});\n  }\n}\nreturn items;"
+        },
+        "id": "zm-code-01",
+        "name": "Préparer 15 Prompts",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          460,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "batchSize": 1,
+          "options": {}
+        },
+        "id": "zm-split-01",
+        "name": "Boucle 1 par 1",
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          680,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={\"contents\":[{\"parts\":[{\"text\":\"{{ $json.prompt }}\"}]}]}",
+          "options": {}
+        },
+        "id": "zm-http-01",
+        "name": "Gemini AI",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "position": [
+          900,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const text = $input.item.json.candidates?.[0]?.content?.parts?.[0]?.text || \"Erreur génération\";\nconst loop = $(\"Boucle 1 par 1\").item.json;\nreturn [{json: {moto: loop.moto, platform: loop.platform, post: text}}];"
+        },
+        "id": "zm-extract-01",
+        "name": "Extraire Post",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1120,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "aggregate": "aggregateAllItemData",
+          "options": {}
+        },
+        "id": "zm-agg-01",
+        "name": "Agréger Tous Posts",
+        "type": "n8n-nodes-base.aggregate",
+        "typeVersion": 1,
+        "position": [
+          1340,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const posts = $input.item.json.data;\nlet html = \"<h2 style=\\\"color:#1a1a2e\\\">Posts ZenithMoto — \" + new Date().toLocaleDateString(\"fr-CH\") + \"</h2>\";\nfor (const p of posts) {\n  html += \"<hr><h3>\" + p.platform + \" — \" + p.moto + \"</h3><p>\" + p.post.replace(/\\n/g,\"<br>\") + \"</p>\";\n}\nreturn [{json: {html}}];"
+        },
+        "id": "zm-format-01",
+        "name": "Formater Email",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1560,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "fromEmail": "zenithmoto.ch@gmail.com",
+          "toEmail": "zenithmoto.ch@gmail.com",
+          "subject": "📱 Posts ZenithMoto — Aujourd'hui",
+          "emailFormat": "html",
+          "message": "={{ $json.html }}",
+          "options": {}
+        },
+        "id": "zm-email-01",
+        "name": "Envoyer Posts",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          1780,
+          300
+        ],
+        "credentials": {
+          "smtp": {
+            "id": "smtp-zenithmoto",
+            "name": "ZenithMoto Gmail SMTP"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Chaque jour à 9h": {
+        "main": [
+          [
+            {
+              "node": "Préparer 15 Prompts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Préparer 15 Prompts": {
+        "main": [
+          [
+            {
+              "node": "Boucle 1 par 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Boucle 1 par 1": {
+        "main": [
+          [
+            {
+              "node": "Gemini AI",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Agréger Tous Posts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini AI": {
+        "main": [
+          [
+            {
+              "node": "Extraire Post",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extraire Post": {
+        "main": [
+          [
+            {
+              "node": "Boucle 1 par 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Agréger Tous Posts": {
+        "main": [
+          [
+            {
+              "node": "Formater Email",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Formater Email": {
+        "main": [
+          [
+            {
+              "node": "Envoyer Posts",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "timezone": "Europe/Zurich"
+    },
+    "active": false
+  },
+  {
+    "name": "ZenithMoto — Prospection Partenaires",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "30 9 * * 1"
+              }
+            ]
+          }
+        },
+        "id": "zm-sched-02",
+        "name": "Lundi 9h30",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const queries=[\"hotel Bienne\",\"auberge Bienne\",\"office tourisme Bienne\",\"agence voyage Biel\",\"conciergerie Bienne\"];\nreturn queries.map(q=>({json:{query:q}}));"
+        },
+        "id": "zm-queries-02",
+        "name": "Définir Recherches",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          460,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "batchSize": 1,
+          "options": {}
+        },
+        "id": "zm-split-02",
+        "name": "Boucle Recherches",
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          680,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "https://maps.googleapis.com/maps/api/place/textsearch/json",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "query",
+                "value": "={{ $json.query }}"
+              },
+              {
+                "name": "key",
+                "value": "={{ $env.GOOGLE_MAPS_API_KEY }}"
+              },
+              {
+                "name": "language",
+                "value": "fr"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "zm-maps-02",
+        "name": "Google Maps",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.1,
+        "position": [
+          900,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const r=$input.item.json.results||[];\nreturn r.map(p=>({json:{name:p.name,address:p.formatted_address||\"\",email:\"info@\"+p.name.toLowerCase().replace(/[^a-z0-9]/g,\"\").substring(0,20)+\".ch\"}}));"
+        },
+        "id": "zm-extract-02",
+        "name": "Extraire Partenaires",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1120,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "batchSize": 1,
+          "options": {}
+        },
+        "id": "zm-split2-02",
+        "name": "Boucle Partenaires",
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          1340,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "fromEmail": "zenithmoto.ch@gmail.com",
+          "toEmail": "={{ $json.email }}",
+          "subject": "=Partenariat ZenithMoto × {{ $json.name }}",
+          "emailFormat": "html",
+          "message": "<p>Bonjour,</p><p>ZenithMoto, location motos Bienne. Tarifs préférentiels + commission pour vos clients. On en discute ?</p><p>ZenithMoto · zenithmoto.ch</p>",
+          "options": {}
+        },
+        "id": "zm-email-02",
+        "name": "Email Partenariat",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          1560,
+          300
+        ],
+        "credentials": {
+          "smtp": {
+            "id": "smtp-zenithmoto",
+            "name": "ZenithMoto Gmail SMTP"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 3,
+          "unit": "seconds"
+        },
+        "id": "zm-wait-02",
+        "name": "Pause 3s",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1780,
+          300
+        ],
+        "webhookId": "zm-wait-pause-02"
+      }
+    ],
+    "connections": {
+      "Lundi 9h30": {
+        "main": [
+          [
+            {
+              "node": "Définir Recherches",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Définir Recherches": {
+        "main": [
+          [
+            {
+              "node": "Boucle Recherches",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Boucle Recherches": {
+        "main": [
+          [
+            {
+              "node": "Google Maps",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          []
+        ]
+      },
+      "Google Maps": {
+        "main": [
+          [
+            {
+              "node": "Extraire Partenaires",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extraire Partenaires": {
+        "main": [
+          [
+            {
+              "node": "Boucle Partenaires",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Boucle Partenaires": {
+        "main": [
+          [
+            {
+              "node": "Email Partenariat",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          []
+        ]
+      },
+      "Email Partenariat": {
+        "main": [
+          [
+            {
+              "node": "Pause 3s",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Pause 3s": {
+        "main": [
+          [
+            {
+              "node": "Boucle Partenaires",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "timezone": "Europe/Zurich"
+    },
+    "active": false
+  },
+  {
+    "name": "ZenithMoto — Notifications Réservations",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "zenithmoto-booking",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "id": "zm-webhook-03",
+        "name": "Webhook Lovable",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          300
+        ],
+        "webhookId": "zm-lovable-booking"
+      },
+      {
+        "parameters": {
+          "mode": "rules",
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.body.event }}",
+                      "rightValue": "booking_created",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "Confirmation"
+              },
+              {
+                "conditions": {
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.body.event }}",
+                      "rightValue": "booking_completed",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      }
+                    }
+                  ]
+                },
+                "renameOutput": true,
+                "outputKey": "Suivi"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "zm-switch-03",
+        "name": "Type Événement",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3,
+        "position": [
+          460,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "fromEmail": "zenithmoto.ch@gmail.com",
+          "toEmail": "={{ $json.body.booking.client_email }}",
+          "subject": "=✅ Réservation confirmée — {{ $json.body.booking.motorcycle }} · ZenithMoto",
+          "emailFormat": "html",
+          "message": "=<div style=\"font-family:Arial,sans-serif;max-width:580px\"><div style=\"background:#1a1a2e;padding:20px 28px;border-radius:8px 8px 0 0\"><span style=\"color:#fff;font-size:20px;font-weight:800\">ZenithMoto</span><span style=\"color:#f0a500\">.</span></div><div style=\"background:#fff;padding:28px;border:1px solid #eee;border-top:none\"><h2 style=\"color:#1a1a2e\">Réservation confirmée 🎉</h2><p>Bonjour <strong>{{ $json.body.booking.client_name }}</strong>,</p><div style=\"background:#f8f8f8;border-radius:8px;padding:16px;margin:16px 0\"><p>🏍️ <strong>{{ $json.body.booking.motorcycle }}</strong></p><p>📅 Du {{ $json.body.booking.start_date }} au {{ $json.body.booking.end_date }}</p><p>💰 CHF {{ $json.body.booking.price }}</p></div><p>Permis de conduire + pièce d'identité requis. Casque fourni.</p><p style=\"color:#666;font-size:13px\">ZenithMoto · zenithmoto.ch</p></div></div>",
+          "options": {}
+        },
+        "id": "zm-confirm-03",
+        "name": "Email Confirmation",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          700,
+          160
+        ],
+        "credentials": {
+          "smtp": {
+            "id": "smtp-zenithmoto",
+            "name": "ZenithMoto Gmail SMTP"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "amount": 24,
+          "unit": "hours"
+        },
+        "id": "zm-wait-03",
+        "name": "Attendre 24h",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          940,
+          160
+        ],
+        "webhookId": "zm-wait-24h-03"
+      },
+      {
+        "parameters": {
+          "fromEmail": "zenithmoto.ch@gmail.com",
+          "toEmail": "={{ $json.body.booking.client_email }}",
+          "subject": "=⏰ C'est demain ! {{ $json.body.booking.motorcycle }} — ZenithMoto",
+          "emailFormat": "html",
+          "message": "=<div style=\"font-family:Arial,sans-serif;max-width:580px\"><div style=\"background:#1a1a2e;padding:20px 28px;border-radius:8px 8px 0 0\"><span style=\"color:#fff;font-size:20px;font-weight:800\">ZenithMoto</span><span style=\"color:#f0a500\">.</span></div><div style=\"background:#fff;padding:28px;border:1px solid #eee;border-top:none\"><h2 style=\"color:#1a1a2e\">C'est demain ! 🏍️</h2><p>Bonjour <strong>{{ $json.body.booking.client_name }}</strong>, votre <strong>{{ $json.body.booking.motorcycle }}</strong> commence demain.</p><div style=\"background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:16px\"><p><strong>📋 N'oubliez pas :</strong> Permis de conduire · Pièce d'identité · Carte de crédit</p></div><p style=\"color:#666;font-size:13px\">ZenithMoto · zenithmoto.ch</p></div></div>",
+          "options": {}
+        },
+        "id": "zm-reminder-03",
+        "name": "Email Rappel J-1",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          1180,
+          160
+        ],
+        "credentials": {
+          "smtp": {
+            "id": "smtp-zenithmoto",
+            "name": "ZenithMoto Gmail SMTP"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "fromEmail": "zenithmoto.ch@gmail.com",
+          "toEmail": "={{ $json.body.booking.client_email }}",
+          "subject": "=⭐ Merci {{ $json.body.booking.client_name }} — Votre avis compte !",
+          "emailFormat": "html",
+          "message": "=<div style=\"font-family:Arial,sans-serif;max-width:580px\"><div style=\"background:#1a1a2e;padding:20px 28px;border-radius:8px 8px 0 0\"><span style=\"color:#fff;font-size:20px;font-weight:800\">ZenithMoto</span><span style=\"color:#f0a500\">.</span></div><div style=\"background:#fff;padding:28px;border:1px solid #eee;border-top:none\"><h2 style=\"color:#1a1a2e\">Merci ! 🙏</h2><p>Bonjour <strong>{{ $json.body.booking.client_name }}</strong>, merci pour votre location de la <strong>{{ $json.body.booking.motorcycle }}</strong> !</p><p>Un avis Google prend 30 secondes et nous aide énormément :</p><div style=\"text-align:center;margin:24px 0\"><a href=\"https://www.google.com/search?q=ZenithMoto+Bienne+avis\" style=\"background:#f0a500;color:#1a1a2e;padding:14px 28px;border-radius:8px;font-weight:700;text-decoration:none\">⭐ Laisser un avis Google</a></div><p style=\"color:#666;font-size:13px\">ZenithMoto · zenithmoto.ch</p></div></div>",
+          "options": {}
+        },
+        "id": "zm-followup-03",
+        "name": "Email Suivi Avis",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          700,
+          460
+        ],
+        "credentials": {
+          "smtp": {
+            "id": "smtp-zenithmoto",
+            "name": "ZenithMoto Gmail SMTP"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "{\"success\":true}"
+        },
+        "id": "zm-respond-03",
+        "name": "Répondre OK",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          940,
+          460
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook Lovable": {
+        "main": [
+          [
+            {
+              "node": "Type Événement",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Type Événement": {
+        "main": [
+          [
+            {
+              "node": "Email Confirmation",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Email Suivi Avis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Email Confirmation": {
+        "main": [
+          [
+            {
+              "node": "Attendre 24h",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Attendre 24h": {
+        "main": [
+          [
+            {
+              "node": "Email Rappel J-1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Email Suivi Avis": {
+        "main": [
+          [
+            {
+              "node": "Répondre OK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "timezone": "Europe/Zurich"
+    },
+    "active": false
+  },
+  {
+    "name": "ZenithMoto — Rapport Hebdomadaire",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "field": "cronExpression",
+                "expression": "0 8 * * 1"
+              }
+            ]
+          }
+        },
+        "id": "zm-sched-04",
+        "name": "Lundi à 8h",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const now=new Date();const w=now.toLocaleDateString(\"fr-CH\",{day:\"2-digit\",month:\"long\",year:\"numeric\"});const html=\"<div style=font-family:Arial,sans-serif><h2>Rapport ZenithMoto — \"+w+\"</h2><p>Posts générés, prospection effectuée, rappels actifs.</p><p>Généré le \"+now.toLocaleString(\"fr-CH\")+\"</p></div>\";return [{json:{html,subject:\"Rapport hebdo ZenithMoto — \"+w}}];"
+        },
+        "id": "zm-code-04",
+        "name": "Générer Rapport",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          460,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "fromEmail": "zenithmoto.ch@gmail.com",
+          "toEmail": "zenithmoto.ch@gmail.com",
+          "subject": "={{ $json.subject }}",
+          "emailFormat": "html",
+          "message": "={{ $json.html }}",
+          "options": {}
+        },
+        "id": "zm-email-04",
+        "name": "Envoyer Rapport",
+        "type": "n8n-nodes-base.emailSend",
+        "typeVersion": 2.1,
+        "position": [
+          680,
+          300
+        ],
+        "credentials": {
+          "smtp": {
+            "id": "smtp-zenithmoto",
+            "name": "ZenithMoto Gmail SMTP"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Lundi à 8h": {
+        "main": [
+          [
+            {
+              "node": "Générer Rapport",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Générer Rapport": {
+        "main": [
+          [
+            {
+              "node": "Envoyer Rapport",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "settings": {
+      "timezone": "Europe/Zurich"
+    },
+    "active": false
+  }
+]
