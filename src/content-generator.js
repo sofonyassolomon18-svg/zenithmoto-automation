@@ -37,7 +37,7 @@ Ton : chaleureux, professionnel, de confiance.`,
 };
 
 async function generatePost(moto, platform) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   const result = await model.generateContent(PLATFORM_PROMPTS[platform](moto));
   return result.response.text();
 }
