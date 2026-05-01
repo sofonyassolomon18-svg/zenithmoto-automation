@@ -128,7 +128,63 @@ async function sendWeeklyReport() {
   console.log(`✅ Rapport envoyé à ${process.env.SMTP_EMAIL}`);
 }
 
-module.exports = { sendWeeklyReport };
+// ── Daily KPI Telegram ────────────────────────────────────────────
+// Push quotidien : nb bookings dernier 24h, revenu, prochaines arrivées du jour
+async function sendDailyKpiTelegram() {
+  const TG_BOT  = process.env.TELEGRAM_BOT_TOKEN;
+  const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
+  if (!TG_BOT || !TG_CHAT) return; // pas configuré → skip silencieux
+
+  try {
+    const bookings = loadBookings();
+    const now = new Date();
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const today = now.toISOString().slice(0, 10);
+
+    const newToday = bookings.filter((b) => {
+      const d = b.created_at || b.start_date;
+      return d && new Date(d) >= yesterday;
+    });
+    const startingToday = bookings.filter((b) => (b.start_date || "").slice(0, 10) === today);
+    const endingToday = bookings.filter((b) => (b.end_date || "").slice(0, 10) === today);
+    const revenue24h = newToday.reduce((s, b) => s + (Number(b.price) || 0), 0);
+
+    const lines = [
+      `🌅 *ZenithMoto — Daily Brief* ${now.toLocaleDateString("fr-CH", { weekday: "long", day: "2-digit", month: "long" })}`,
+      "",
+      `📥 ${newToday.length} nouvelle${newToday.length > 1 ? "s" : ""} réservation${newToday.length > 1 ? "s" : ""} (24h)`,
+      `💰 Revenu 24h : CHF ${revenue24h}`,
+      `🏍️ Départs aujourd'hui : ${startingToday.length}`,
+      `🏁 Retours aujourd'hui : ${endingToday.length}`,
+    ];
+
+    if (startingToday.length > 0) {
+      lines.push("", "*Départs du jour :*");
+      for (const b of startingToday.slice(0, 5)) {
+        lines.push(`• ${b.client_name || "?"} — ${b.motorcycle || "?"}`);
+      }
+    }
+    if (endingToday.length > 0) {
+      lines.push("", "*Retours du jour :*");
+      for (const b of endingToday.slice(0, 5)) {
+        lines.push(`• ${b.client_name || "?"} — ${b.motorcycle || "?"}`);
+      }
+    }
+
+    const text = lines.join("\n");
+    const axios = require("axios");
+    await axios.post(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
+      chat_id: TG_CHAT,
+      text,
+      parse_mode: "Markdown",
+    }, { timeout: 8000 });
+    console.log(`[reports] Daily KPI envoyé (${newToday.length} new, ${startingToday.length} dep, ${endingToday.length} ret)`);
+  } catch (e) {
+    console.warn("[reports] Daily KPI échec :", e.message);
+  }
+}
+
+module.exports = { sendWeeklyReport, sendDailyKpiTelegram };
 
 if (require.main === module) {
   sendWeeklyReport().catch(console.error);

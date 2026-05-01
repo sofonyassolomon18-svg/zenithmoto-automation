@@ -3,7 +3,7 @@ const axios = require('axios');
 const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
 const { checkAndSendReminders } = require('./notifications');
-const { sendWeeklyReport } = require('./reports');
+const { sendWeeklyReport, sendDailyKpiTelegram } = require('./reports');
 const { runBookingAssistant } = require('./booking-assistant');
 
 function startScheduler() {
@@ -42,6 +42,12 @@ function startScheduler() {
   cron.schedule('0 10 * * *', async () => {
     console.log('\n[CRON] Vérification rappels J-1...');
     try { await checkAndSendReminders(); } catch (e) { console.error('CRON reminder error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Daily KPI Telegram — tous les jours à 8h00 (briefing matinal)
+  cron.schedule('0 8 * * *', async () => {
+    try { await sendDailyKpiTelegram(); }
+    catch (e) { console.error('CRON daily KPI error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
   // Prospection partenaires — tous les lundis à 9h30
