@@ -4,6 +4,7 @@ const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
 const { checkAndSendReminders } = require('./notifications');
 const { sendWeeklyReport } = require('./reports');
+const { runBookingAssistant } = require('./booking-assistant');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
@@ -41,11 +42,20 @@ function startScheduler() {
     try { await sendWeeklyReport(); } catch (e) { console.error('CRON report error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
+  // Booking Assistant — toutes les 15 min (remplace Make.com 5491229)
+  cron.schedule('*/15 * * * *', async () => {
+    try {
+      const r = await runBookingAssistant();
+      if (r.processed > 0) console.log(`[CRON booking] processed=${r.processed} replied=${r.replied} skipped=${r.skipped} errors=${r.errors}`);
+    } catch (e) { console.error('CRON booking error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
   console.log('📅 Tâches programmées :');
   console.log('   🏍️  Posts réseaux sociaux  → tous les jours à 09:00');
   console.log('   ⏰  Rappels J-1             → tous les jours à 10:00');
   console.log('   🤝  Prospection partenaires → lundis à 09:30');
-  console.log('   📊  Rapport hebdomadaire    → lundis à 08:00\n');
+  console.log('   📊  Rapport hebdomadaire    → lundis à 08:00');
+  console.log('   ✉️  Booking Assistant       → toutes les 15 minutes\n');
 }
 
 module.exports = { startScheduler };
