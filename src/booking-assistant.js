@@ -21,7 +21,9 @@ const IMAP_CONFIG = {
   secure: true,
   auth: { user: SMTP_USER, pass: APP_PASS },
   logger: false,
-  tls: { rejectUnauthorized: false },
+  // TLS strict : Gmail a un cert valide, pas besoin de désactiver la vérification.
+  // Si tu as besoin de bypass en dev local (ex: proxy MITM debug), set IMAP_INSECURE_TLS=1.
+  tls: { rejectUnauthorized: process.env.IMAP_INSECURE_TLS !== '1' },
 };
 
 const SKIP_FROM_PATTERNS = [
@@ -97,6 +99,20 @@ async function sendReply(toEmail, subject, body) {
   });
 }
 
+// Tracking failures pour log throttled (1× toutes les 30 min) sans flooder
+const _logFailures = { supabase: { count: 0, lastLogged: 0 }, telegram: { count: 0, lastLogged: 0 } };
+const _LOG_THROTTLE_MS = 30 * 60 * 1000;
+function _maybeWarn(svc, err) {
+  const s = _logFailures[svc];
+  s.count++;
+  const now = Date.now();
+  if (now - s.lastLogged > _LOG_THROTTLE_MS) {
+    console.warn(`[booking] ${svc} log failed (×${s.count} in last 30min): ${err}`);
+    s.count = 0;
+    s.lastLogged = now;
+  }
+}
+
 async function logToSupabase(payload, status, error) {
   if (!SUPABASE_KEY) return;
   try {
@@ -112,7 +128,7 @@ async function logToSupabase(payload, status, error) {
       },
       timeout: 10000,
     });
-  } catch (_) { /* swallow log errors */ }
+  } catch (e) { _maybeWarn('supabase', e.message); }
 }
 
 async function notifyTelegram(text) {
@@ -120,7 +136,7 @@ async function notifyTelegram(text) {
   try {
     await axios.post(`https://api.telegram.org/bot${TG_BOT}/sendMessage`,
       { chat_id: TG_CHAT, text }, { timeout: 5000 });
-  } catch (_) {}
+  } catch (e) { _maybeWarn('telegram', e.message); }
 }
 
 async function runBookingAssistant() {
@@ -139,8 +155,17 @@ async function runBookingAssistant() {
     const uids = await client.search({ seen: false, since }, { uid: true });
     if (uids.length === 0) return stats;
 
-    const toFetch = uids.slice(-10); // cap at 10 per cycle
-    console.log(`[booking] ${toFetch.length} unread emails (last 24h)`);
+    const CAP = 10;
+    const toFetch = uids.slice(-CAP); // cap at 10 per cycle
+    stats.queue_depth = uids.length;
+    stats.queue_capacity = CAP;
+    // Alert si la queue grossit anormalement (> 2× le cap = traitement insuffisant)
+    if (uids.length > CAP * 2) {
+      const msg = `⚠️ ZenithMoto Booking Queue : ${uids.length} emails non lus (> ${CAP * 2} = 2× capacity). Le bot traite ${CAP}/cycle, risque de retard.`;
+      console.warn(msg);
+      notifyTelegram(msg).catch(() => {});
+    }
+    console.log(`[booking] ${toFetch.length}/${uids.length} unread emails (last 24h)`);
 
     for (const uid of toFetch) {
       stats.processed++;

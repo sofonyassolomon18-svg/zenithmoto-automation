@@ -14,8 +14,22 @@ function startScheduler() {
     ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
     : `http://localhost:${process.env.PORT || 3001}/health`;
 
+  // Track keep-alive failures pour détecter Railway down sans flooder les logs
+  let keepAliveFails = 0;
   cron.schedule('*/4 * * * *', async () => {
-    try { await axios.get(selfUrl, { timeout: 5000 }); } catch (_) {}
+    try {
+      await axios.get(selfUrl, { timeout: 5000 });
+      if (keepAliveFails > 0) {
+        console.log(`[keep-alive] récupéré après ${keepAliveFails} échecs`);
+        keepAliveFails = 0;
+      }
+    } catch (e) {
+      keepAliveFails++;
+      // Log toutes les 3 fails (12 min) pour pas spammer mais détecter incident
+      if (keepAliveFails % 3 === 1) {
+        console.warn(`[keep-alive] échec #${keepAliveFails} (${selfUrl}): ${e.message}`);
+      }
+    }
   });
 
   // Génération contenu — tous les jours à 9h00

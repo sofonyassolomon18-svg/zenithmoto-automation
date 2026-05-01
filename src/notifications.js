@@ -152,10 +152,34 @@ async function checkAndSendReminders() {
 
 function createWebhookServer() {
   const app = express();
+  // Capture raw body for HMAC verification — must be before express.json
+  app.use('/webhook/booking', express.raw({ type: 'application/json' }));
   app.use(express.json());
 
+  // HMAC SHA-256 verification : protège contre webhooks forgés
+  // Header attendu : X-Lovable-Signature: sha256=<hex>
+  // Le secret est dans LOVABLE_WEBHOOK_SECRET (générer via crypto.randomBytes(32).toString('hex'))
+  function verifyWebhookSignature(req) {
+    const secret = process.env.LOVABLE_WEBHOOK_SECRET;
+    if (!secret) return true; // dev mode : pas de secret = pas de verif (log warning ailleurs)
+    const sig = req.headers['x-lovable-signature'] || '';
+    const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body), 'utf8');
+    const crypto = require('crypto');
+    const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex');
+    try { return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)); }
+    catch { return false; }
+  }
+
   app.post('/webhook/booking', async (req, res) => {
-    const { event, booking } = req.body;
+    if (!verifyWebhookSignature(req)) {
+      console.warn('[webhook] HMAC invalide — rejet');
+      return res.status(401).json({ error: 'invalid signature' });
+    }
+    // Body est en raw Buffer ici, on le parse manuellement
+    let body;
+    try { body = JSON.parse(req.body.toString('utf8')); }
+    catch { return res.status(400).json({ error: 'JSON invalide' }); }
+    const { event, booking } = body;
     if (!event || !booking) return res.status(400).json({ error: 'event et booking requis' });
 
     console.log(`📨 Webhook reçu: ${event} → ${booking.client_name || 'unknown'}`);
@@ -187,7 +211,42 @@ function createWebhookServer() {
     }
   });
 
+  // Health check basique (utilisé par Railway healthcheck)
   app.get('/health', (req, res) => res.json({ status: 'ok', service: 'ZenithMoto Notifications' }));
+
+  // Health enrichi : check les services critiques (env vars, fichiers, dernier ping booking-assistant)
+  app.get('/health/full', (req, res) => {
+    const fs = require('fs');
+    const checks = {
+      gmail_smtp: !!(process.env.SMTP_EMAIL && process.env.GMAIL_APP_PASSWORD),
+      gmail_imap: !!(process.env.SMTP_EMAIL && process.env.GMAIL_APP_PASSWORD),
+      gemini: !!process.env.GEMINI_API_KEY,
+      supabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_KEY),
+      telegram: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
+      lovable_webhook_secret: !!process.env.LOVABLE_WEBHOOK_SECRET,
+    };
+
+    // Bookings file accessible ?
+    let bookingsCount = null;
+    try {
+      const bp = require('path').join(__dirname, '..', 'data', 'bookings.json');
+      if (fs.existsSync(bp)) {
+        const data = JSON.parse(fs.readFileSync(bp, 'utf8'));
+        bookingsCount = Array.isArray(data) ? data.length : Object.keys(data).length;
+      }
+    } catch (_) {}
+
+    const allOk = checks.gmail_smtp && checks.gemini;
+    res.status(allOk ? 200 : 503).json({
+      status: allOk ? 'ok' : 'degraded',
+      service: 'ZenithMoto Notifications',
+      uptime_seconds: Math.floor(process.uptime()),
+      memory_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      checks,
+      bookings_count: bookingsCount,
+      timestamp: new Date().toISOString(),
+    });
+  });
 
   return app;
 }

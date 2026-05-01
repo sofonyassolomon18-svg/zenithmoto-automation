@@ -6,11 +6,45 @@ const path = require('path');
 
 const MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const LOG_FILE = path.join(__dirname, '..', 'logs', 'prospection.csv');
+// JSON-based dedup index : O(1) lookup, exact match (le grep CSV était fragile : "Hotel Lac"
+// matchait "Hotel Lac de Bienne", et lent quand le CSV grossit)
+const DEDUP_FILE = path.join(__dirname, '..', 'data', 'prospection-contacted.json');
 const SEARCH_QUERIES = [
   'hôtel Bienne', 'hôtel Biel', 'auberge jeunesse Bienne',
   'office du tourisme Bienne', 'agence voyage Bienne',
   'entreprise transport Bienne', 'concessionnaire moto Bienne',
 ];
+
+function _normalizeName(name) {
+  return (name || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+let _contactedSet = null;
+function _loadContacted() {
+  if (_contactedSet) return _contactedSet;
+  try {
+    fs.mkdirSync(path.dirname(DEDUP_FILE), { recursive: true });
+    const arr = fs.existsSync(DEDUP_FILE) ? JSON.parse(fs.readFileSync(DEDUP_FILE, 'utf8')) : [];
+    _contactedSet = new Set(arr);
+  } catch { _contactedSet = new Set(); }
+  // Migration : si le CSV log existe et le JSON est vide, importe les noms du CSV
+  if (_contactedSet.size === 0 && fs.existsSync(LOG_FILE)) {
+    try {
+      const lines = fs.readFileSync(LOG_FILE, 'utf8').split(/\r?\n/).slice(1);
+      for (const ln of lines) {
+        const name = (ln.split(',')[1] || '').trim();
+        if (name) _contactedSet.add(_normalizeName(name));
+      }
+      fs.writeFileSync(DEDUP_FILE, JSON.stringify([..._contactedSet]));
+    } catch {}
+  }
+  return _contactedSet;
+}
+
+function _persistContacted() {
+  try { fs.writeFileSync(DEDUP_FILE, JSON.stringify([..._contactedSet])); }
+  catch (e) { console.warn('[prospection] dedup persist failed:', e.message); }
+}
 
 function getTransport() {
   return nodemailer.createTransport({
@@ -20,16 +54,19 @@ function getTransport() {
 }
 
 function alreadyContacted(name) {
-  if (!fs.existsSync(LOG_FILE)) return false;
-  return fs.readFileSync(LOG_FILE, 'utf8').includes(name.replace(/,/g, ''));
+  return _loadContacted().has(_normalizeName(name));
 }
 
 function logContact(name, email, status) {
   const line = `${new Date().toISOString()},${name.replace(/,/g, '')},${email},${status}\n`;
   if (!fs.existsSync(LOG_FILE)) {
+    fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
     fs.writeFileSync(LOG_FILE, 'Date,Nom,Email,Statut\n');
   }
   fs.appendFileSync(LOG_FILE, line);
+  // Index JSON pour dedup O(1)
+  _loadContacted().add(_normalizeName(name));
+  _persistContacted();
 }
 
 function guessEmail(name, website) {
