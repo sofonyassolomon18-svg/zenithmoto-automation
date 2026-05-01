@@ -50,6 +50,27 @@ function startScheduler() {
     catch (e) { console.error('CRON daily KPI error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
+  // Rappel J-1 ZenithMoto site (Lovable Supabase) — tous les jours à 17h00
+  // Trigger l'edge function send-reminder-d1 qui envoie les emails de rappel J-1
+  // (pour les bookings avec start_date = demain)
+  cron.schedule('0 17 * * *', async () => {
+    const supaUrl = process.env.ZENITHMOTO_SUPABASE_URL;
+    const supaAnon = process.env.ZENITHMOTO_SUPABASE_ANON_KEY;
+    if (!supaUrl || !supaAnon) {
+      console.warn('[CRON reminder-d1] ZENITHMOTO_SUPABASE_URL/ANON_KEY non configurés — skip');
+      return;
+    }
+    try {
+      const res = await axios.post(`${supaUrl}/functions/v1/send-reminder-d1`, {}, {
+        headers: { Authorization: `Bearer ${supaAnon}`, 'Content-Type': 'application/json' },
+        timeout: 30000,
+      });
+      console.log(`[CRON reminder-d1] OK : ${res.data.sent}/${res.data.total} envoyés pour ${res.data.date}`);
+    } catch (e) {
+      console.error('CRON reminder-d1 error:', e.response?.data || e.message);
+    }
+  }, { timezone: 'Europe/Zurich' });
+
   // Prospection partenaires — tous les lundis à 9h30
   cron.schedule('30 9 * * 1', async () => {
     console.log('\n[CRON] Prospection partenaires...');
