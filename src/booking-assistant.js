@@ -55,14 +55,32 @@ Si question hors-sujet (spam, autre service), réponds poliment qu'on ne peut pa
 
 Réponse en TEXTE BRUT uniquement, sans markdown, sans préambule.`;
 
-  const r = await axios.post(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-    { contents: [{ parts: [{ text: prompt }] }] },
-    { timeout: 30000 }
-  );
-  const text = r.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-  if (!text) throw new Error('Gemini returned empty response');
-  return text;
+  // Free-tier safe order: 2.5-flash-lite (free) → 2.0-flash (often quota-out) → gemma-3-12b
+  const models = ['gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemma-3-12b-it', 'gemini-2.5-flash'];
+  let lastErr;
+  for (const model of models) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`,
+          { contents: [{ parts: [{ text: prompt }] }] },
+          { timeout: 30000 }
+        );
+        const text = r.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+        if (text) return text;
+        throw new Error('Gemini empty response');
+      } catch (e) {
+        lastErr = e;
+        const code = e.response?.status;
+        if (code === 429 || (code >= 500 && code < 600)) {
+          await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+          continue;
+        }
+        break; // non-retriable for this model
+      }
+    }
+  }
+  throw lastErr || new Error('Gemini all models failed');
 }
 
 async function sendReply(toEmail, subject, body) {
