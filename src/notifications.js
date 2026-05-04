@@ -127,13 +127,56 @@ async function sendNotification(emailData) {
   });
 }
 
+// Fetch tomorrow's bookings from Supabase REST API (no SDK needed, Node 18+ fetch)
+async function fetchTomorrowsBookingsFromSupabase(tomorrowStr) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_KEY;
+  if (!url || !key) return null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/bookings?select=*&start_date=eq.${tomorrowStr}&status=neq.cancelled`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (e) {
+    console.warn('[reminders] Supabase fetch failed:', e.message);
+    return null;
+  }
+}
+
 // Daily cron: check bookings for J-1 reminders
 async function checkAndSendReminders() {
-  const bookings = loadBookings();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
+  // Try Supabase first — single source of truth for bookings
+  const supabaseBookings = await fetchTomorrowsBookingsFromSupabase(tomorrowStr);
+
+  if (supabaseBookings !== null) {
+    // Supabase path: bookings already filtered for tomorrow
+    for (const booking of supabaseBookings) {
+      try {
+        const mapped = {
+          client_name: booking.client_name,
+          client_email: booking.client_email,
+          motorcycle: booking.moto,
+          start_date: booking.start_date,
+          end_date: booking.end_date,
+          booking_id: booking.id,
+        };
+        await sendNotification(emailReminder(mapped));
+        console.log(`⏰ Rappel J-1 (Supabase) envoyé → ${booking.client_name}`);
+      } catch (e) {
+        console.error(`Rappel error: ${e.message}`);
+      }
+    }
+    return;
+  }
+
+  // Fallback: local file (dev / migration window)
+  const bookings = loadBookings();
   for (const booking of bookings) {
     if (booking.reminder_sent) continue;
     const startStr = new Date(booking.start_date).toISOString().split('T')[0];
@@ -141,7 +184,7 @@ async function checkAndSendReminders() {
       try {
         await sendNotification(emailReminder(booking));
         booking.reminder_sent = true;
-        console.log(`⏰ Rappel J-1 envoyé → ${booking.client_name}`);
+        console.log(`⏰ Rappel J-1 (local) envoyé → ${booking.client_name}`);
       } catch (e) {
         console.error(`Rappel error: ${e.message}`);
       }
@@ -156,23 +199,42 @@ function createWebhookServer() {
   app.use('/webhook/booking', express.raw({ type: 'application/json' }));
   app.use(express.json());
 
-  // HMAC SHA-256 verification : protège contre webhooks forgés
-  // Header attendu : X-Lovable-Signature: sha256=<hex>
-  // Le secret est dans LOVABLE_WEBHOOK_SECRET (générer via crypto.randomBytes(32).toString('hex'))
+  // HMAC SHA-256 verification : protège contre webhooks forgés.
+  // Header attendu : X-Hub-Signature-256: sha256=<hex>  (compat. GitHub-style)
+  // Secret dans WEBHOOK_SECRET (généré via `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+  // Si WEBHOOK_SECRET est vide → on log un warning et on accepte (mode dev local).
+  // Si WEBHOOK_SECRET est défini ET signature absente/invalide → 401.
+  const crypto = require('crypto');
+  let _warnedNoSecret = false;
   function verifyWebhookSignature(req) {
-    const secret = process.env.LOVABLE_WEBHOOK_SECRET;
-    if (!secret) return true; // dev mode : pas de secret = pas de verif (log warning ailleurs)
-    const sig = req.headers['x-lovable-signature'] || '';
+    const secret = process.env.WEBHOOK_SECRET;
+    if (!secret) {
+      if (!_warnedNoSecret) {
+        console.warn('[webhook] ⚠️ WEBHOOK_SECRET non défini — vérification HMAC désactivée (DEV MODE)');
+        _warnedNoSecret = true;
+      }
+      return { ok: true, devMode: true };
+    }
+    const sig = req.headers['x-hub-signature-256'] || req.headers['X-Hub-Signature-256'] || '';
+    if (!sig) return { ok: false, reason: 'missing signature header' };
     const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body), 'utf8');
-    const crypto = require('crypto');
     const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(raw).digest('hex');
-    try { return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected)); }
-    catch { return false; }
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length) return { ok: false, reason: 'signature length mismatch' };
+    try {
+      return crypto.timingSafeEqual(a, b)
+        ? { ok: true }
+        : { ok: false, reason: 'signature mismatch' };
+    } catch {
+      return { ok: false, reason: 'signature compare error' };
+    }
   }
 
   app.post('/webhook/booking', async (req, res) => {
-    if (!verifyWebhookSignature(req)) {
-      console.warn('[webhook] HMAC invalide — rejet');
+    const v = verifyWebhookSignature(req);
+    if (!v.ok) {
+      console.warn(`[webhook] HMAC invalide → rejet (${v.reason})`);
       return res.status(401).json({ error: 'invalid signature' });
     }
     // Body est en raw Buffer ici, on le parse manuellement
@@ -223,7 +285,7 @@ function createWebhookServer() {
       gemini: !!process.env.GEMINI_API_KEY,
       supabase: !!(process.env.SUPABASE_URL && process.env.SUPABASE_KEY),
       telegram: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-      lovable_webhook_secret: !!process.env.LOVABLE_WEBHOOK_SECRET,
+      webhook_secret: !!process.env.WEBHOOK_SECRET,
     };
 
     // Bookings file accessible ?
