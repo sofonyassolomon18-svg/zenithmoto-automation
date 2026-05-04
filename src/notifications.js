@@ -205,7 +205,7 @@ function emailPostRentalReview(booking) {
     <p>Nous espérons que votre location de la <strong>${moto}</strong> s'est parfaitement déroulée et que vous avez passé un excellent moment sur la route.</p>
     <p>Votre retour compte beaucoup pour nous — et un avis Google prend moins de 30 secondes. Si vous avez été satisfait, ce petit geste fait toute la différence pour ZenithMoto :</p>
     <div style="text-align:center;margin:28px 0">
-      <a href="https://www.google.com/search?q=ZenithMoto+Bienne+avis" style="background:#f0a500;color:#1a1a2e;padding:14px 28px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;display:inline-block">Laisser un avis Google</a>
+      <a href="https://search.google.com/local/writereview?placeid=ChIJPZ4xF6aAaQy8yQ9N80Kljg" style="background:#f0a500;color:#1a1a2e;padding:14px 28px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;display:inline-block">Laisser un avis Google</a>
     </div>
     <p>Une question, un commentaire ? Vous pouvez aussi nous écrire directement sur WhatsApp :</p>
     <div style="text-align:center;margin:20px 0">
