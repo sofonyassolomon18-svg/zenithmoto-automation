@@ -145,6 +145,113 @@ async function fetchTomorrowsBookingsFromSupabase(tomorrowStr) {
   }
 }
 
+// Fetch yesterday's confirmed bookings without review request from Supabase
+async function fetchYesterdaysBookingsFromSupabase(yesterdayStr) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_KEY;
+  if (!url || !key) return null;
+  try {
+    const res = await fetch(
+      `${url}/rest/v1/bookings?select=*&end_date=eq.${yesterdayStr}&review_request_sent=is.null`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
+    );
+    if (!res.ok) return null;
+    const bookings = await res.json();
+    return bookings.filter(b => b.status === 'confirmed' || b.status === 'pending');
+  } catch (e) {
+    console.warn('[post-rental] Supabase fetch failed:', e.message);
+    return null;
+  }
+}
+
+// Mark booking as review request sent
+async function markReviewRequestSent(bookingId) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_KEY;
+  try {
+    await fetch(
+      `${url}/rest/v1/bookings?id=eq.${bookingId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          apikey: key,
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal',
+        },
+        body: JSON.stringify({ review_request_sent: true }),
+      }
+    );
+  } catch (e) {
+    console.warn('[post-rental] Supabase PATCH failed:', e.message);
+  }
+}
+
+function emailPostRentalReview(booking) {
+  const name = booking.client_name || 'cher client';
+  const moto = booking.moto || booking.motorcycle || 'votre moto';
+  return {
+    to: booking.client_email,
+    subject: `Comment s'est passée votre location ? — ZenithMoto`,
+    html: `
+<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;color:#2c2c2c">
+  <div style="background:#1a1a2e;padding:24px 32px;border-radius:8px 8px 0 0">
+    <span style="color:#fff;font-size:22px;font-weight:800">ZenithMoto</span>
+    <span style="color:#f0a500;font-size:22px">.</span>
+  </div>
+  <div style="background:#fff;padding:32px;border:1px solid #eee;border-top:none">
+    <h2 style="color:#1a1a2e;margin:0 0 20px">Merci d'avoir roulé avec nous !</h2>
+    <p>Bonjour <strong>${name}</strong>,</p>
+    <p>Nous espérons que votre location de la <strong>${moto}</strong> s'est parfaitement déroulée et que vous avez passé un excellent moment sur la route.</p>
+    <p>Votre retour compte beaucoup pour nous — et un avis Google prend moins de 30 secondes. Si vous avez été satisfait, ce petit geste fait toute la différence pour ZenithMoto :</p>
+    <div style="text-align:center;margin:28px 0">
+      <a href="https://g.page/r/zenithmoto/review" style="background:#f0a500;color:#1a1a2e;padding:14px 28px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;display:inline-block">Laisser un avis Google</a>
+    </div>
+    <p>Une question, un commentaire ? Vous pouvez aussi nous écrire directement sur WhatsApp :</p>
+    <div style="text-align:center;margin:20px 0">
+      <a href="https://wa.me/41782655108" style="background:#25d366;color:#fff;padding:12px 24px;border-radius:8px;font-size:15px;font-weight:600;text-decoration:none;display:inline-block">Nous écrire sur WhatsApp</a>
+    </div>
+    <p>On espère vous revoir bientôt sur la route !</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+    <p style="color:#666;font-size:13px">L'équipe ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
+  </div>
+</div>`,
+  };
+}
+
+// Daily cron: send Google Review request to clients whose rental ended yesterday
+async function checkAndSendPostRentalReview() {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  const bookings = await fetchYesterdaysBookingsFromSupabase(yesterdayStr);
+  if (bookings === null) {
+    console.warn('[post-rental] Supabase non disponible — skip');
+    return;
+  }
+
+  for (const booking of bookings) {
+    try {
+      const mapped = {
+        client_name: booking.client_name,
+        client_email: booking.client_email,
+        moto: booking.moto || booking.motorcycle,
+        booking_id: booking.id,
+      };
+      await sendNotification(emailPostRentalReview(mapped));
+      console.log(`[post-rental] Avis envoyé → ${booking.client_name}`);
+      try {
+        await markReviewRequestSent(booking.id);
+      } catch (e) {
+        console.warn(`[post-rental] Impossible de marquer review_request_sent (colonne absente ?) : ${e.message}`);
+      }
+    } catch (e) {
+      console.error(`[post-rental] Erreur envoi → ${booking.client_email} : ${e.message}`);
+    }
+  }
+}
+
 // Daily cron: check bookings for J-1 reminders
 async function checkAndSendReminders() {
   const tomorrow = new Date();
@@ -313,4 +420,4 @@ function createWebhookServer() {
   return app;
 }
 
-module.exports = { createWebhookServer, checkAndSendReminders };
+module.exports = { createWebhookServer, checkAndSendReminders, checkAndSendPostRentalReview };

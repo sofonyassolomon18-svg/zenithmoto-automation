@@ -2,35 +2,31 @@ const cron = require('node-cron');
 const axios = require('axios');
 const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
-const { checkAndSendReminders } = require('./notifications');
+const { checkAndSendReminders, checkAndSendPostRentalReview } = require('./notifications');
 const { sendWeeklyReport, sendDailyKpiTelegram } = require('./reports');
 const { runBookingAssistant } = require('./booking-assistant');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
 
-  // Keep-alive — ping /health toutes les 4 min pour éviter le sleep Railway
-  const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
-    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
-    : `http://localhost:${process.env.PORT || 3001}/health`;
-
-  // Track keep-alive failures pour détecter Railway down sans flooder les logs
-  let keepAliveFails = 0;
-  cron.schedule('*/4 * * * *', async () => {
-    try {
-      await axios.get(selfUrl, { timeout: 5000 });
-      if (keepAliveFails > 0) {
-        console.log(`[keep-alive] récupéré après ${keepAliveFails} échecs`);
-        keepAliveFails = 0;
-      }
-    } catch (e) {
-      keepAliveFails++;
-      // Log toutes les 3 fails (12 min) pour pas spammer mais détecter incident
-      if (keepAliveFails % 3 === 1) {
-        console.warn(`[keep-alive] échec #${keepAliveFails} (${selfUrl}): ${e.message}`);
-      }
-    }
-  });
+  // ─── Keep-alive Railway DÉSACTIVÉ ────────────────────────────
+  // Railway plan payant = pas de sleep, le keep-alive interne (ping /health toutes les 4 min)
+  // est inutile et fait juste tourner le CPU pour rien. Le healthcheck de Railway suffit.
+  // Si on retombe sur un plan free / hibernate → ré-activer le bloc ci-dessous.
+  //
+  // const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+  //   ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
+  //   : `http://localhost:${process.env.PORT || 3001}/health`;
+  // let keepAliveFails = 0;
+  // cron.schedule('*/4 * * * *', async () => {
+  //   try {
+  //     await axios.get(selfUrl, { timeout: 5000 });
+  //     if (keepAliveFails > 0) { console.log(`[keep-alive] récupéré après ${keepAliveFails} échecs`); keepAliveFails = 0; }
+  //   } catch (e) {
+  //     keepAliveFails++;
+  //     if (keepAliveFails % 3 === 1) console.warn(`[keep-alive] échec #${keepAliveFails} (${selfUrl}): ${e.message}`);
+  //   }
+  // });
 
   // Génération contenu — tous les jours à 9h00
   cron.schedule('0 9 * * *', async () => {
@@ -42,6 +38,12 @@ function startScheduler() {
   cron.schedule('0 10 * * *', async () => {
     console.log('\n[CRON] Vérification rappels J-1...');
     try { await checkAndSendReminders(); } catch (e) { console.error('CRON reminder error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Follow-up avis Google post-location — tous les jours à 10h05
+  cron.schedule('5 10 * * *', async () => {
+    console.log('\n[CRON] Follow-up avis Google post-location...');
+    try { await checkAndSendPostRentalReview(); } catch (e) { console.error('CRON post-rental error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
   // Daily KPI Telegram — tous les jours à 8h00 (briefing matinal)
@@ -96,6 +98,7 @@ function startScheduler() {
   console.log('   ⏰  Rappels J-1             → tous les jours à 10:00');
   console.log('   🤝  Prospection partenaires → lundis à 09:30');
   console.log('   📊  Rapport hebdomadaire    → lundis à 08:00');
+  console.log('   ⭐  Avis Google post-loc.   → tous les jours à 10:05');
   console.log('   ✉️  Booking Assistant       → toutes les 15 minutes\n');
 }
 
