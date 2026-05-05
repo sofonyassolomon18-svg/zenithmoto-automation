@@ -219,11 +219,11 @@ function emailPostRentalReview(booking) {
   };
 }
 
-// Daily cron: send Google Review request to clients whose rental ended yesterday
+// Daily cron: send Google Review request to clients whose rental ended 2 days ago (J+2)
 async function checkAndSendPostRentalReview() {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().split('T')[0];
+  const twoDaysAgo = new Date();
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  const yesterdayStr = twoDaysAgo.toISOString().split('T')[0];
 
   const bookings = await fetchYesterdaysBookingsFromSupabase(yesterdayStr);
   if (bookings === null) {

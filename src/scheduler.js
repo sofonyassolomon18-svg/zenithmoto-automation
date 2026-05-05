@@ -41,9 +41,10 @@ function startScheduler() {
     try { await checkAndSendReminders(); } catch (e) { console.error('CRON reminder error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
-  // Follow-up avis Google post-location — tous les jours à 10h05
+  // Follow-up avis Google post-location J+2 — tous les jours à 10h05
+  // Cible les locations dont end_date = il y a 2 jours (J+2 après la fin)
   cron.schedule('5 10 * * *', async () => {
-    console.log('\n[CRON] Follow-up avis Google post-location...');
+    console.log('\n[CRON] Follow-up avis Google post-location J+2...');
     try { await checkAndSendPostRentalReview(); } catch (e) { console.error('CRON post-rental error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
@@ -105,7 +106,7 @@ function startScheduler() {
   console.log('   ⏰  Rappels J-1             → tous les jours à 10:00');
   console.log('   🤝  Prospection partenaires → lundis à 09:30');
   console.log('   📊  Rapport hebdomadaire    → lundis à 08:00');
-  console.log('   ⭐  Avis Google post-loc.   → tous les jours à 10:05');
+  console.log('   ⭐  Avis Google post-loc.   → tous les jours à 10:05 (J+2 après fin location)');
   console.log('   ✉️  Booking Assistant       → toutes les 15 minutes');
   console.log('   🔑  Buffer token check      → tous les jours à 08:05\n');
 }
