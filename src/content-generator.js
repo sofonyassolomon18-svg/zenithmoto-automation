@@ -2,15 +2,22 @@ require('dotenv').config();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs');
 const path = require('path');
+const { publishPost, flushTikTokTelegram } = require('./publisher');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
+// imageUrl = photo publique de la moto (pour Instagram). Remplacer par vraies photos zenithmoto.ch
 const FLEET = [
-  { name: 'Tracer 700 2024', type: 'roadster sport', style: 'aventure et liberté sur route' },
-  { name: 'X-ADV 2025', type: 'adventure scooter', style: 'exploration urbaine et tout-terrain' },
-  { name: 'T-Max', type: 'scooter premium', style: 'luxe, confort et prestige' },
-  { name: 'X-Max 300', type: 'scooter intermédiaire', style: 'polyvalence et élégance' },
-  { name: 'X-Max 125', type: 'scooter accessible', style: 'liberté urbaine pour tous' },
+  { name: 'Tracer 700 2024', type: 'roadster sport', style: 'aventure et liberté sur route',
+    imageUrl: process.env.IMG_TRACER_700 || null },
+  { name: 'X-ADV 2025', type: 'adventure scooter', style: 'exploration urbaine et tout-terrain',
+    imageUrl: process.env.IMG_XADV_2025 || null },
+  { name: 'T-Max', type: 'scooter premium', style: 'luxe, confort et prestige',
+    imageUrl: process.env.IMG_TMAX || null },
+  { name: 'X-Max 300', type: 'scooter intermédiaire', style: 'polyvalence et élégance',
+    imageUrl: process.env.IMG_XMAX300 || null },
+  { name: 'X-Max 125', type: 'scooter accessible', style: 'liberté urbaine pour tous',
+    imageUrl: process.env.IMG_XMAX125 || null },
 ];
 
 const PLATFORM_PROMPTS = {
@@ -65,9 +72,16 @@ async function generateAllPosts() {
 
     const filename = `${date}_${moto.name.replace(/\s+/g, '-').toLowerCase()}.json`;
     fs.writeFileSync(path.join(postsDir, filename), JSON.stringify(result, null, 2));
+
+    // Publier sur les réseaux sociaux
+    console.log(`  🚀 Publication ${moto.name}...`);
+    await publishPost({ moto: moto.name, posts: result.posts, imageUrl: moto.imageUrl });
   }
 
-  console.log(`\n✅ Posts sauvegardés dans posts/\n`);
+  // Envoyer le digest TikTok Telegram une fois tous les posts traités
+  await flushTikTokTelegram();
+
+  console.log(`\n✅ Posts générés et publiés\n`);
 }
 
 module.exports = { generateAllPosts };
