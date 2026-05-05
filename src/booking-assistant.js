@@ -6,7 +6,8 @@ const { ImapFlow } = require('imapflow');
 const { simpleParser } = require('mailparser');
 const nodemailer = require('nodemailer');
 const axios = require('axios');
-const { generate: geminiGenerate } = require('./lib/gemini');
+// NVIDIA NIM en 1er (gratuit), Gemini en fallback automatique
+const { generate: geminiGenerate } = require('./lib/ai');
 
 const SMTP_USER = process.env.SMTP_EMAIL || 'zenithmoto.ch@gmail.com';
 const APP_PASS  = process.env.GMAIL_APP_PASSWORD;
