@@ -5,6 +5,7 @@ const { runProspection } = require('./prospection');
 const { checkAndSendReminders, checkAndSendPostRentalReview } = require('./notifications');
 const { sendWeeklyReport, sendDailyKpiTelegram } = require('./reports');
 const { runBookingAssistant } = require('./booking-assistant');
+const { runBufferMonitor } = require('./buffer-monitor');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
@@ -50,6 +51,12 @@ function startScheduler() {
   cron.schedule('0 8 * * *', async () => {
     try { await sendDailyKpiTelegram(); }
     catch (e) { console.error('CRON daily KPI error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Buffer token health check — tous les jours à 8h05 (silencieux si OK)
+  cron.schedule('5 8 * * *', async () => {
+    try { await runBufferMonitor(); }
+    catch (e) { console.error('CRON buffer-monitor error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
   // Rappel J-1 ZenithMoto site (Lovable Supabase) — tous les jours à 17h00
@@ -99,7 +106,8 @@ function startScheduler() {
   console.log('   🤝  Prospection partenaires → lundis à 09:30');
   console.log('   📊  Rapport hebdomadaire    → lundis à 08:00');
   console.log('   ⭐  Avis Google post-loc.   → tous les jours à 10:05');
-  console.log('   ✉️  Booking Assistant       → toutes les 15 minutes\n');
+  console.log('   ✉️  Booking Assistant       → toutes les 15 minutes');
+  console.log('   🔑  Buffer token check      → tous les jours à 08:05\n');
 }
 
 module.exports = { startScheduler };
