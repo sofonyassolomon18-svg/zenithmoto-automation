@@ -1,10 +1,8 @@
 require('dotenv').config();
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const ai = require('./lib/ai');
 const fs = require('fs');
 const path = require('path');
 const { publishPost, flushTikTokTelegram } = require('./publisher');
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // imageUrl = photo publique de la moto (pour Instagram). Remplacer par vraies photos zenithmoto.ch
 const FLEET = [
@@ -44,13 +42,11 @@ Ton : chaleureux, professionnel, de confiance.`,
 };
 
 async function generatePost(moto, platform) {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-  const result = await model.generateContent(PLATFORM_PROMPTS[platform](moto));
-  return result.response.text();
+  return await ai.generate(PLATFORM_PROMPTS[platform](moto));
 }
 
 async function generateAllPosts() {
-  console.log('🤖 Génération des posts via Gemini AI...\n');
+  console.log('🤖 Génération des posts via NVIDIA→Gemini fallback...\n');
   const date = new Date().toISOString().split('T')[0];
   const postsDir = path.join(__dirname, '..', 'posts');
 
