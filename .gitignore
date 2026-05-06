@@ -1,4 +1,27 @@
+# ── Node ───────────────────────────────────────────
 node_modules/
-.env
-logs/
 *.log
+logs/
+tmp/
+
+# ── Env (NEVER commit secrets) ─────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python (au cas où ajout futur) ─────────────────
+__pycache__/
+*.pyc
+.python-version
+venv/
+
+# ── Local data ─────────────────────────────────────
+data/*.sqlite
+data/*.db
+
+# ── Obsidian (notes locales, pas pour le repo) ────
+obsidian_vault/
+
+# ── OS ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db

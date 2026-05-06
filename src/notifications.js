@@ -213,7 +213,8 @@ function emailPostRentalReview(booking) {
     </div>
     <p>On espère vous revoir bientôt sur la route !</p>
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-    <p style="color:#666;font-size:13px">L'équipe ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
+    <p style="color:#666;font-size:13px">L'équipe ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch<br>Rue Centrale 1, 2502 Bienne (BE), Suisse</p>
+    <p style="color:#aaa;font-size:11px;margin-top:8px">Vous recevez cet email suite à votre location chez ZenithMoto. Pour ne plus recevoir ce type de message : <a href="mailto:zenithmoto.ch@gmail.com?subject=Désabonnement" style="color:#aaa;">Se désinscrire</a></p>
   </div>
 </div>`,
   };
