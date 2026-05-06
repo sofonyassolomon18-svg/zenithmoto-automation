@@ -362,6 +362,12 @@ function createWebhookServer() {
         const bookings = loadBookings();
         bookings.push({ ...booking, reminder_sent: false, followup_sent: false });
         saveBookings(bookings);
+
+        // VIP detection (3e+ location) : notif Telegram async, ne bloque pas la réponse webhook
+        try {
+          const { notifyVipOnNewBooking } = require('./retention');
+          notifyVipOnNewBooking(booking).catch(e => console.warn('[webhook] VIP check failed:', e.message));
+        } catch (e) { /* module loading guarded */ }
       }
 
       if (event === 'booking_completed') {
@@ -406,6 +412,14 @@ function createWebhookServer() {
       }
     } catch (_) {}
 
+    // Reliability snapshot : circuit states + DLQ count
+    let circuits = {}, dlqCount = 0;
+    try {
+      const { circuitStatus, deadLetter } = require('./lib/circuit-breaker');
+      circuits = circuitStatus();
+      dlqCount = deadLetter.count();
+    } catch (_) {}
+
     const allOk = checks.gmail_smtp && checks.gemini;
     res.status(allOk ? 200 : 503).json({
       status: allOk ? 'ok' : 'degraded',
@@ -414,8 +428,25 @@ function createWebhookServer() {
       memory_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
       checks,
       bookings_count: bookingsCount,
+      circuits,
+      dead_letter_count: dlqCount,
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // Read-only DLQ inspection (admin only — protégé par token)
+  app.get('/admin/dlq', (req, res) => {
+    const token = req.query.token || req.headers['x-admin-token'];
+    if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+      const { deadLetter } = require('./lib/circuit-breaker');
+      const limit = Math.min(200, parseInt(req.query.limit) || 50);
+      res.json({ count: deadLetter.count(), items: deadLetter.read(limit) });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   return app;

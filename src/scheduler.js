@@ -3,9 +3,10 @@ const axios = require('axios');
 const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
 const { checkAndSendReminders, checkAndSendPostRentalReview } = require('./notifications');
-const { sendWeeklyReport, sendDailyKpiTelegram } = require('./reports');
+const { sendWeeklyReport, sendDailyKpiTelegram, sendWeeklyKpiTelegram } = require('./reports');
 const { runBookingAssistant } = require('./booking-assistant');
 const { runBufferMonitor } = require('./buffer-monitor');
+const { recoverAbandonedBookings } = require('./retention');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
@@ -101,6 +102,20 @@ function startScheduler() {
     } catch (e) { console.error('CRON booking error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
+  // Abandon cart recovery — toutes les 30 min, 9h-21h (pas la nuit)
+  cron.schedule('*/30 9-21 * * *', async () => {
+    try {
+      const r = await recoverAbandonedBookings();
+      if (r?.sent > 0) console.log(`[CRON retention] abandoned=${r.count} recovered=${r.sent}`);
+    } catch (e) { console.error('CRON retention error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Weekly KPI report Telegram — dimanche 20h00 (debrief de fin de semaine)
+  cron.schedule('0 20 * * 0', async () => {
+    console.log('\n[CRON] Rapport KPI hebdomadaire Telegram...');
+    try { await sendWeeklyKpiTelegram(); } catch (e) { console.error('CRON weekly-kpi error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
   console.log('📅 Tâches programmées :');
   console.log('   🏍️  Posts réseaux sociaux  → tous les jours à 09:00');
   console.log('   ⏰  Rappels J-1             → tous les jours à 10:00');
@@ -108,7 +123,9 @@ function startScheduler() {
   console.log('   📊  Rapport hebdomadaire    → lundis à 08:00');
   console.log('   ⭐  Avis Google post-loc.   → tous les jours à 10:05 (J+2 après fin location)');
   console.log('   ✉️  Booking Assistant       → toutes les 15 minutes');
-  console.log('   🔑  Buffer token check      → tous les jours à 08:05\n');
+  console.log('   🔑  Buffer token check      → tous les jours à 08:05');
+  console.log('   🛒  Abandon cart recovery   → toutes les 30 min (9h-21h)');
+  console.log('   📊  KPI hebdo Telegram      → dimanche 20:00\n');
 }
 
 module.exports = { startScheduler };

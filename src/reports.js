@@ -184,7 +184,43 @@ async function sendDailyKpiTelegram() {
   }
 }
 
-module.exports = { sendWeeklyReport, sendDailyKpiTelegram };
+// ── Rapport KPI hebdomadaire avancé Telegram (dimanche 20h) ────────
+// Utilise lib/analytics → revenue / occupation / repeat rate / WoW
+async function sendWeeklyKpiTelegram() {
+  const TG_BOT  = process.env.TELEGRAM_BOT_TOKEN;
+  const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
+  if (!TG_BOT || !TG_CHAT) return;
+
+  try {
+    const { weeklyKpis } = require('./lib/analytics');
+    const k = await weeklyKpis();
+
+    const wowEmoji = k.wow_pct == null ? '–' : (k.wow_pct >= 0 ? `📈 +${k.wow_pct.toFixed(0)}%` : `📉 ${k.wow_pct.toFixed(0)}%`);
+    const occEmoji = k.occupation_pct >= 70 ? '🟢' : (k.occupation_pct >= 40 ? '🟡' : '🔴');
+
+    const lines = [
+      `📊 *ZenithMoto — Rapport hebdo* (${k.period_start} → ${k.period_end})`,
+      "",
+      `💰 Revenu : *CHF ${k.revenue}*  ${wowEmoji}`,
+      `📥 Bookings : ${k.bookings_count}`,
+      `${occEmoji} Occupation : ${k.occupation_pct}% (${k.rented_days}j sur ${k.fleet_size}×7)`,
+      `🔁 Repeat rate : ${k.repeat_rate_pct}% (${k.repeat_bookings}/${k.bookings_count})`,
+    ];
+    if (k.top_moto) lines.push(`🏆 Top moto : ${k.top_moto.name} (${k.top_moto.count} loc.)`);
+
+    const axios = require('axios');
+    await axios.post(`https://api.telegram.org/bot${TG_BOT}/sendMessage`, {
+      chat_id: TG_CHAT,
+      text: lines.join('\n'),
+      parse_mode: 'Markdown',
+    }, { timeout: 8000 });
+    console.log(`[reports] Weekly KPI envoyé (revenue=${k.revenue}, occ=${k.occupation_pct}%, repeat=${k.repeat_rate_pct}%)`);
+  } catch (e) {
+    console.warn('[reports] Weekly KPI échec :', e.message);
+  }
+}
+
+module.exports = { sendWeeklyReport, sendDailyKpiTelegram, sendWeeklyKpiTelegram };
 
 if (require.main === module) {
   sendWeeklyReport().catch(console.error);
