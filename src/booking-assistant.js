@@ -8,6 +8,8 @@ const nodemailer = require('nodemailer');
 const axios = require('axios');
 // NVIDIA NIM en 1er (gratuit), Gemini en fallback automatique
 const { generate: geminiGenerate } = require('./lib/ai');
+const { analyzeEmail, estimateQuote } = require('./lib/intent');
+const { withCircuit, retry, deadLetter, CircuitOpenError } = require('./lib/circuit-breaker');
 
 const SMTP_USER = process.env.SMTP_EMAIL || 'zenithmoto.ch@gmail.com';
 const APP_PASS  = process.env.GMAIL_APP_PASSWORD;
@@ -43,14 +45,28 @@ function shouldSkip(fromEmail, subject, headers) {
   return null;
 }
 
-async function generateReply(email) {
+async function generateReply(email, intent) {
+  // Si on a déjà détecté un intent + un devis estimable, on file un contexte enrichi à l'IA
+  // pour qu'elle réponde avec les bons éléments concrets (devis + lien checkout) sans halluciner.
+  let contextHint = '';
+  if (intent?.canQuote) {
+    const q = estimateQuote(intent.moto, intent.dates[0], intent.dates[intent.dates.length - 1]);
+    if (q) {
+      contextHint = `\n\nINTENT DÉTECTÉ : booking_request (confiance ${intent.confidence.toFixed(2)})\nMOTO : ${intent.moto.name}\nDATES : ${intent.dates[0]} → ${intent.dates[intent.dates.length - 1]} (${q.days}j)\nDEVIS ESTIMÉ : ${q.breakdown}\nMENTIONNE ces éléments dans ta réponse + invite à confirmer sur zenithmoto.ch.`;
+    }
+  } else if (intent?.intent === 'cancellation') {
+    contextHint = `\n\nINTENT DÉTECTÉ : annulation. Réponds avec empathie, demande le numéro de réservation, rappelle que l'annulation est gratuite jusqu'à 48h avant le début.`;
+  } else if (intent?.intent === 'pricing_question' && intent.moto) {
+    contextHint = `\n\nINTENT : question prix sur ${intent.moto.name}. Donne directement : CHF ${intent.moto.daily}/jour · CHF ${intent.moto.weekend}/weekend (sam-dim).`;
+  }
+
   const prompt = `Tu es l'assistant ZenithMoto (location de motos à Bienne, Suisse).
 
 Email reçu :
 De      : ${email.fromName} <${email.fromEmail}>
 Sujet   : ${email.subject}
 Message :
-${email.bodyText}
+${email.bodyText}${contextHint}
 
 Écris une réponse professionnelle et chaleureuse, en français OU allemand selon la langue du client.
 Catalogue (CHF/jour · CHF/weekend) : Tracer 700 120/216 · TMAX 530 100/180 · X-ADV 750 120/216 · X-Max 300 80/144 · X-Max 125 65/117.
@@ -59,8 +75,11 @@ Si question hors-sujet (spam, autre service), réponds poliment qu'on ne peut pa
 
 Réponse en TEXTE BRUT uniquement, sans markdown, sans préambule.`;
 
-  // Free-tier safe order géré par lib/gemini.js (4 modèles + retry × backoff 1.5s).
-  return await geminiGenerate(prompt, { apiKey: GEMINI_KEY });
+  // Circuit breaker : si Gemini/NVIDIA échouent en cascade, on coupe pour éviter
+  // de spammer les API et de bloquer le cron.
+  return await withCircuit('ai', () => geminiGenerate(prompt, { apiKey: GEMINI_KEY }), {
+    failureThreshold: 5, cooldownMs: 5 * 60_000,
+  });
 }
 
 async function sendReply(toEmail, subject, body) {
@@ -166,16 +185,39 @@ async function runBookingAssistant() {
           continue;
         }
 
-        const reply = await generateReply({ fromName, fromEmail, subject, bodyText });
-        await sendReply(fromEmail, subject, reply);
+        // Analyse heuristique avant l'IA → permet d'enrichir le prompt + tagger l'intent en log
+        const analysis = analyzeEmail({ subject, bodyText });
+
+        let reply;
+        try {
+          reply = await generateReply({ fromName, fromEmail, subject, bodyText }, analysis);
+        } catch (e) {
+          if (e?.code === 'CIRCUIT_OPEN') {
+            console.warn(`[booking] uid ${uid} — AI circuit open, falling back to canned reply`);
+            // Réponse canned minimale pour ne pas laisser le client sans réponse
+            reply = `Bonjour${fromName ? ' ' + fromName.split(' ')[0] : ''},\n\n` +
+              `Merci pour votre message. Notre assistant automatique est temporairement indisponible — un humain vous répondra dans les prochaines heures.\n\n` +
+              `Pour réservation directe : zenithmoto.ch\n` +
+              `Tarifs : Tracer 700 / X-ADV 750 dès CHF 120/jour · TMAX 530 dès CHF 100/jour · X-Max dès CHF 65/jour.\n\n` +
+              `À très vite !`;
+          } else {
+            throw e;
+          }
+        }
+
+        // Send avec retry SMTP (Gmail flapping ponctuel = OK, retry court)
+        await retry(() => sendReply(fromEmail, subject, reply), { tries: 3, baseMs: 500, maxMs: 4000 });
+
         await client.messageFlagsAdd(`${uid}`, ['\\Seen'], { uid: true });
-        await logToSupabase({ uid, fromEmail, subject }, 'success');
+        await logToSupabase({ uid, fromEmail, subject, intent: analysis.intent, confidence: analysis.confidence, moto: analysis.moto?.key, canQuote: analysis.canQuote }, 'success');
         stats.replied++;
-        console.log(`[booking] uid ${uid} — replied → ${fromEmail}`);
+        console.log(`[booking] uid ${uid} — replied → ${fromEmail} (intent=${analysis.intent} moto=${analysis.moto?.key || '-'} dates=${analysis.dates.length})`);
       } catch (e) {
         stats.errors++;
         console.error(`[booking] uid ${uid} ERR:`, e.message);
         await logToSupabase({ uid }, 'error', e.message);
+        // Persist dans dead letter queue pour replay manuel ultérieur
+        deadLetter.push({ kind: 'booking_reply', uid, error: e.message, code: e.code || null });
       }
     }
   } finally {
