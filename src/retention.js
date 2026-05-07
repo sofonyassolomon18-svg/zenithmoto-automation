@@ -5,6 +5,11 @@
 
 const nodemailer = require('nodemailer');
 const { isVipCustomer, findAbandonedBookings } = require('./lib/analytics');
+
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '[no-email]';
+  return email.replace(/(.{2}).*(@.*)/, '$1***$2');
+}
 const { notify } = require('./lib/telegram');
 const { upsert, select } = require('./lib/supabase');
 const { retry, deadLetter } = require('./lib/circuit-breaker');
@@ -115,9 +120,9 @@ async function recoverAbandonedBookings() {
       }), { tries: 3, baseMs: 500, maxMs: 4000 });
       await _markRecoverySent(b.id, b.client_email);
       sent++;
-      console.log(`[retention] recovery email → ${b.client_email}`);
+      console.log(`[retention] recovery email → ${maskEmail(b.client_email)}`);
     } catch (e) {
-      console.error(`[retention] recovery FAIL → ${b.client_email}: ${e.message}`);
+      console.error(`[retention] recovery FAIL → ${maskEmail(b.client_email)}: ${e.message}`);
       deadLetter.push({ kind: 'recovery_email', booking_id: b.id, email: b.client_email, error: e.message });
     }
   }

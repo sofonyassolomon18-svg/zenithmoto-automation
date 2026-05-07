@@ -1,8 +1,16 @@
 require('dotenv').config();
 const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
+
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '[no-email]';
+  return email.replace(/(.{2}).*(@.*)/, '$1***$2');
+}
 
 const BOOKINGS_FILE = path.join(__dirname, '..', 'data', 'bookings.json');
 
@@ -303,6 +311,36 @@ async function checkAndSendReminders() {
 
 function createWebhookServer() {
   const app = express();
+
+  // ── Sécurité : helmet (headers HTTP) ──────────────────────────────
+  app.use(helmet({
+    strictTransportSecurity: { maxAge: 63072000, includeSubDomains: true },
+    contentSecurityPolicy: false, // API JSON, pas de rendu HTML
+    noSniff: true,
+    xssFilter: true,
+    referrerPolicy: { policy: 'no-referrer' },
+  }));
+
+  // ── CORS strict : zenithmoto.ch + lovable.dev uniquement ──────────
+  app.use(cors({
+    origin: [
+      'https://zenithmoto.ch',
+      'https://www.zenithmoto.ch',
+      /lovable\.dev$/,
+    ],
+    credentials: false,
+  }));
+
+  // ── Rate-limit global : 100 req / 15 min par IP ───────────────────
+  const globalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.path === '/health',
+  });
+  app.use(globalLimiter);
+
   // Capture raw body for HMAC verification — must be before express.json
   app.use('/webhook/booking', express.raw({ type: 'application/json' }));
   app.use(express.json());
@@ -317,8 +355,13 @@ function createWebhookServer() {
   function verifyWebhookSignature(req) {
     const secret = process.env.WEBHOOK_SECRET;
     if (!secret) {
+      // En production (NODE_ENV=production), refuser si WEBHOOK_SECRET absent — pas de fallback silencieux.
+      // En dev local uniquement : accepter avec warning.
+      if (process.env.NODE_ENV === 'production') {
+        return { ok: false, reason: 'WEBHOOK_SECRET non configuré en production — refus sécurisé' };
+      }
       if (!_warnedNoSecret) {
-        console.warn('[webhook] ⚠️ WEBHOOK_SECRET non défini — vérification HMAC désactivée (DEV MODE)');
+        console.warn('[webhook] ⚠️ WEBHOOK_SECRET non défini — vérification HMAC désactivée (DEV MODE uniquement)');
         _warnedNoSecret = true;
       }
       return { ok: true, devMode: true };
@@ -350,14 +393,37 @@ function createWebhookServer() {
     try { body = JSON.parse(req.body.toString('utf8')); }
     catch { return res.status(400).json({ error: 'JSON invalide' }); }
     const { event, booking } = body;
-    if (!event || !booking) return res.status(400).json({ error: 'event et booking requis' });
+
+    // Validation du schema payload
+    const VALID_EVENTS = ['booking_created', 'booking_completed', 'booking_cancelled'];
+    const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]+\.[^\s@]{2,}$/;
+    const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}(T[\d:.Z+-]*)?$/;
+
+    if (!event || !booking) {
+      return res.status(400).json({ error: 'event et booking requis' });
+    }
+    if (!VALID_EVENTS.includes(event)) {
+      return res.status(400).json({ error: `event invalide — valeurs acceptées: ${VALID_EVENTS.join(', ')}` });
+    }
+    if (!booking.client_email || !EMAIL_RE.test(booking.client_email)) {
+      return res.status(400).json({ error: 'booking.client_email invalide ou manquant' });
+    }
+    if (!booking.moto_id || typeof booking.moto_id !== 'string') {
+      return res.status(400).json({ error: 'booking.moto_id manquant (string requis)' });
+    }
+    if (!booking.start_date || !ISO_DATE_RE.test(booking.start_date)) {
+      return res.status(400).json({ error: 'booking.start_date invalide (ISO 8601 requis, ex: 2025-06-15)' });
+    }
+    if (!booking.end_date || !ISO_DATE_RE.test(booking.end_date)) {
+      return res.status(400).json({ error: 'booking.end_date invalide (ISO 8601 requis, ex: 2025-06-20)' });
+    }
 
     console.log(`📨 Webhook reçu: ${event} → ${booking.client_name || 'unknown'}`);
 
     try {
       if (event === 'booking_created') {
         await sendNotification(emailConfirmation(booking));
-        console.log(`✅ Confirmation envoyée → ${booking.client_email}`);
+        console.log(`✅ Confirmation envoyée → ${maskEmail(booking.client_email)}`);
 
         const bookings = loadBookings();
         bookings.push({ ...booking, reminder_sent: false, followup_sent: false });
@@ -372,7 +438,7 @@ function createWebhookServer() {
 
       if (event === 'booking_completed') {
         await sendNotification(emailFollowUp(booking));
-        console.log(`⭐ Follow-up avis envoyé → ${booking.client_email}`);
+        console.log(`⭐ Follow-up avis envoyé → ${maskEmail(booking.client_email)}`);
 
         const bookings = loadBookings();
         const b = bookings.find(b => b.booking_id === booking.booking_id);
@@ -434,9 +500,10 @@ function createWebhookServer() {
     });
   });
 
-  // Read-only DLQ inspection (admin only — protégé par token)
+  // Read-only DLQ inspection (admin only — Bearer token en header, jamais en query param)
   app.get('/admin/dlq', (req, res) => {
-    const token = req.query.token || req.headers['x-admin-token'];
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
     if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
       return res.status(401).json({ error: 'unauthorized' });
     }
@@ -452,4 +519,4 @@ function createWebhookServer() {
   return app;
 }
 
-module.exports = { createWebhookServer, checkAndSendReminders, checkAndSendPostRentalReview };
+module.exports = { createWebhookServer, checkAndSendReminders, checkAndSendPostRentalReview, maskEmail };
