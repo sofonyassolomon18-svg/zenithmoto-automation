@@ -6,7 +6,7 @@
 const nodemailer = require('nodemailer');
 const { isVipCustomer, findAbandonedBookings } = require('./lib/analytics');
 const { notify } = require('./lib/telegram');
-const { upsert } = require('./lib/supabase');
+const { upsert, select } = require('./lib/supabase');
 const { retry, deadLetter } = require('./lib/circuit-breaker');
 
 const SMTP_USER = process.env.SMTP_EMAIL || 'zenithmoto.ch@gmail.com';
@@ -75,30 +75,33 @@ function emailAbandonedCart(booking) {
   };
 }
 
-async function _markRecoverySent(bookingId) {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
-  if (!url || !key) return;
-  try {
-    await fetch(`${url}/rest/v1/bookings?id=eq.${bookingId}`, {
-      method: 'PATCH',
-      headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal',
-      },
-      body: JSON.stringify({ recovery_email_sent: true }),
-    });
-  } catch (e) {
-    console.warn(`[retention] mark recovery_email_sent failed (column missing?): ${e.message}`);
-  }
+// Option B : la colonne bookings.recovery_email_sent est dans le projet Lovable (zesestjrccumdpuesszl)
+// inaccessible via ce PAT. On stocke l'état dans automations_state (même projet edcvmgpcllhszxvthdzx).
+async function _markRecoverySent(bookingId, clientEmail) {
+  await upsert('automations_state', {
+    scope: 'recovery_email_sent',
+    key: String(bookingId),
+    value: { sent_at: new Date().toISOString(), email: clientEmail || null },
+  }, { onConflict: 'scope,key' });
+}
+
+// Retourne Set des booking IDs pour lesquels un email recovery a déjà été envoyé.
+async function _getSentRecoveryIds() {
+  const rows = await select('automations_state', "scope=eq.recovery_email_sent&select=key");
+  if (!Array.isArray(rows)) return new Set();
+  return new Set(rows.map(r => String(r.key)));
 }
 
 async function recoverAbandonedBookings() {
   if (!APP_PASS) return { skipped: 'no-smtp' };
-  const abandoned = await findAbandonedBookings({ thresholdMin: 60, maxAgeHours: 24 });
-  if (abandoned.length === 0) return { count: 0, sent: 0 };
+  // findAbandonedBookings filtre status=pending + filtre b.recovery_email_sent (côté Lovable DB).
+  // On complète ici avec notre propre idempotence via automations_state.
+  const candidates = await findAbandonedBookings({ thresholdMin: 60, maxAgeHours: 24 });
+  if (candidates.length === 0) return { count: 0, sent: 0 };
+
+  const alreadySent = await _getSentRecoveryIds();
+  const abandoned = candidates.filter(b => b.id != null && !alreadySent.has(String(b.id)));
+  if (abandoned.length === 0) return { count: 0, sent: 0, skipped: candidates.length };
 
   const transport = _transport();
   let sent = 0;
@@ -110,7 +113,7 @@ async function recoverAbandonedBookings() {
         from: `"ZenithMoto" <${SMTP_USER}>`,
         ...msg,
       }), { tries: 3, baseMs: 500, maxMs: 4000 });
-      await _markRecoverySent(b.id);
+      await _markRecoverySent(b.id, b.client_email);
       sent++;
       console.log(`[retention] recovery email → ${b.client_email}`);
     } catch (e) {
