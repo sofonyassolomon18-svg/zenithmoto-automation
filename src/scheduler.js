@@ -7,6 +7,8 @@ const { sendWeeklyReport, sendDailyKpiTelegram, sendWeeklyKpiTelegram } = requir
 const { runBookingAssistant } = require('./booking-assistant');
 const { runBufferMonitor } = require('./buffer-monitor');
 const { recoverAbandonedBookings } = require('./retention');
+const { pollRenders } = require('./poll-renders');
+const { generateSocialAvatarPost } = require('./flows/social-avatar-post');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
@@ -110,6 +112,27 @@ function startScheduler() {
     } catch (e) { console.error('CRON retention error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
+  // HeyGen poll-renders — toutes les 2 min (download mp4, deliver email/social)
+  cron.schedule('*/2 * * * *', async () => {
+    try {
+      await pollRenders();
+    } catch (e) { console.error('CRON poll-renders error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // HeyGen avatar social post — mercredi 10h (configurable HEYGEN_SOCIAL_CRON)
+  // Cron par défaut : `0 10 * * 3` = mercredi 10h
+  cron.schedule(process.env.HEYGEN_SOCIAL_CRON || '0 10 * * 3', async () => {
+    if (process.env.HEYGEN_SOCIAL_ENABLED !== 'true') {
+      console.log('[CRON heygen-social] disabled (set HEYGEN_SOCIAL_ENABLED=true)');
+      return;
+    }
+    console.log('\n[CRON] Génération avatar social post hebdo...');
+    try {
+      const r = await generateSocialAvatarPost();
+      console.log(`[CRON heygen-social] ${r.ok ? '✅' : '❌'} ${r.ok ? `video_id=${r.video_id} tpl=${r.template_id}` : r.error}`);
+    } catch (e) { console.error('CRON heygen-social error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
   // Weekly KPI report Telegram — dimanche 20h00 (debrief de fin de semaine)
   cron.schedule('0 20 * * 0', async () => {
     console.log('\n[CRON] Rapport KPI hebdomadaire Telegram...');
@@ -125,7 +148,9 @@ function startScheduler() {
   console.log('   ✉️  Booking Assistant       → toutes les 15 minutes');
   console.log('   🔑  Buffer token check      → tous les jours à 08:05');
   console.log('   🛒  Abandon cart recovery   → toutes les 30 min (9h-21h)');
-  console.log('   📊  KPI hebdo Telegram      → dimanche 20:00\n');
+  console.log('   📊  KPI hebdo Telegram      → dimanche 20:00');
+  console.log('   🎬  HeyGen poll-renders     → toutes les 2 min');
+  console.log(`   👤  HeyGen avatar social    → ${process.env.HEYGEN_SOCIAL_CRON || '0 10 * * 3'} ${process.env.HEYGEN_SOCIAL_ENABLED === 'true' ? '(actif)' : '(désactivé)'}\n`);
 }
 
 module.exports = { startScheduler };

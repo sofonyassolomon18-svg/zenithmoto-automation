@@ -516,6 +516,61 @@ function createWebhookServer() {
     }
   });
 
+  // ─── HeyGen admin endpoints ────────────────────────────────────────────────
+  function _heygenAuth(req, res) {
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+      res.status(401).json({ error: 'unauthorized' });
+      return false;
+    }
+    return true;
+  }
+
+  app.get('/api/heygen/avatars', async (_req, res) => {
+    const heygen = require('./lib/heygen');
+    const r = await heygen.listAvatars();
+    res.status(r.ok ? 200 : 502).json(r);
+  });
+
+  app.get('/api/heygen/voices', async (req, res) => {
+    const heygen = require('./lib/heygen');
+    const r = await heygen.listVoices(req.query.lang || 'fr');
+    res.status(r.ok ? 200 : 502).json(r);
+  });
+
+  app.get('/api/heygen/renders', async (req, res) => {
+    const heygen = require('./lib/heygen');
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const r = await heygen.listRenders({ limit, useCase: req.query.use_case });
+    res.json(r);
+  });
+
+  app.post('/api/heygen/test-render', async (req, res) => {
+    if (!_heygenAuth(req, res)) return;
+    try {
+      const { generateSocialAvatarPost } = require('./flows/social-avatar-post');
+      const r = await generateSocialAvatarPost({
+        template_id: req.body?.template_id,
+        platform: req.body?.platform,
+      });
+      res.status(r.ok ? 200 : 502).json(r);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/heygen/poll', async (req, res) => {
+    if (!_heygenAuth(req, res)) return;
+    try {
+      const { pollRenders } = require('./poll-renders');
+      const r = await pollRenders();
+      res.json(r);
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return app;
 }
 

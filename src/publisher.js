@@ -144,4 +144,78 @@ async function publishPost({ moto, posts, imageUrl }) {
   return results;
 }
 
-module.exports = { publishPost, flushTikTokTelegram };
+// ─── INSTAGRAM REELS (video) ─────────────────────────────────────────────────
+// Pour les avatars HeyGen — publication d'une video 9:16 vers Reels.
+// Doc Meta : https://developers.facebook.com/docs/instagram-api/guides/content-publishing
+async function publishInstagramReel(caption, videoUrl, moto = 'avatar-post') {
+  const userId = process.env.INSTAGRAM_USER_ID;
+  const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+  if (!userId || !token) {
+    logPublish(moto, 'instagram-reel', 'SKIPPED_NO_KEY');
+    return null;
+  }
+  if (!videoUrl) {
+    logPublish(moto, 'instagram-reel', 'SKIPPED_NO_VIDEO');
+    return null;
+  }
+  try {
+    // Step 1: create REELS container
+    const container = await axios.post(
+      `https://graph.facebook.com/v19.0/${userId}/media`,
+      { media_type: 'REELS', video_url: videoUrl, caption, access_token: token },
+      { timeout: 30000 }
+    );
+    const creationId = container.data.id;
+    // Step 2: poll status until FINISHED (Meta needs 30-90s to ingest video)
+    let attempts = 0;
+    while (attempts < 20) {
+      await new Promise(r => setTimeout(r, 5000));
+      const st = await axios.get(
+        `https://graph.facebook.com/v19.0/${creationId}?fields=status_code&access_token=${token}`,
+        { timeout: 10000 }
+      );
+      if (st.data.status_code === 'FINISHED') break;
+      if (st.data.status_code === 'ERROR') throw new Error('Meta ingest ERROR');
+      attempts++;
+    }
+    // Step 3: publish
+    const publish = await axios.post(
+      `https://graph.facebook.com/v19.0/${userId}/media_publish`,
+      { creation_id: creationId, access_token: token },
+      { timeout: 30000 }
+    );
+    logPublish(moto, 'instagram-reel', 'OK', publish.data.id);
+    return publish.data.id;
+  } catch (e) {
+    const msg = e.response?.data?.error?.message || e.message;
+    console.error(`    ❌ Instagram Reel error: ${msg}`);
+    logPublish(moto, 'instagram-reel', 'ERROR');
+    return null;
+  }
+}
+
+// Facebook video post (uses Page video endpoint)
+async function publishFacebookVideo(caption, videoUrl, moto = 'avatar-post') {
+  const pageId = process.env.FACEBOOK_PAGE_ID;
+  const token = process.env.FACEBOOK_PAGE_ACCESS_TOKEN || process.env.INSTAGRAM_ACCESS_TOKEN;
+  if (!pageId || !token) {
+    logPublish(moto, 'facebook-video', 'SKIPPED_NO_KEY');
+    return null;
+  }
+  try {
+    const r = await axios.post(
+      `https://graph.facebook.com/v19.0/${pageId}/videos`,
+      { file_url: videoUrl, description: caption, access_token: token },
+      { timeout: 60000 }
+    );
+    logPublish(moto, 'facebook-video', 'OK', r.data.id);
+    return r.data.id;
+  } catch (e) {
+    const msg = e.response?.data?.error?.message || e.message;
+    console.error(`    ❌ Facebook video error: ${msg}`);
+    logPublish(moto, 'facebook-video', 'ERROR');
+    return null;
+  }
+}
+
+module.exports = { publishPost, flushTikTokTelegram, publishInstagramReel, publishFacebookVideo };

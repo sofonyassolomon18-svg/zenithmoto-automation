@@ -1,0 +1,113 @@
+{
+  "_doc": "Calendrier 12 templates videos avatar Sofonyas pour ZenithMoto. Le cron weekly-avatar-post sélectionne par index = (weekOfYear % 12). Chaque entrée a un script (~25-35 mots = ~12-18s) + un moto_id préféré pour la légende et le contexte. Edits libres.",
+  "templates": [
+    {
+      "id": 1,
+      "season": "printemps",
+      "moto_id": "yamaha-tracer-700",
+      "platform": ["instagram", "tiktok", "facebook"],
+      "script": "Le printemps revient sur le Plateau ! On a sorti la Yamaha Tracer 700 — confort, couple, parfaite pour le Chasseral en demi-journée. Tarif weekend : 216 francs. Réserve sur zenithmoto point ch.",
+      "caption": "Printemps = retour des balades. Tracer 700 dispo ce weekend. Lien en bio.",
+      "hashtags": ["#zenithmoto", "#bienne", "#yamaha", "#tracer700", "#motojura", "#chasseral", "#balademoto"]
+    },
+    {
+      "id": 2,
+      "season": "weekend",
+      "moto_id": "yamaha-tmax-530",
+      "platform": ["instagram", "tiktok"],
+      "script": "Tu hésites entre une moto et un scooter pour le weekend ? Le TMAX 530 c'est le compromis parfait : 180 francs les deux jours, automatique, agile en ville et stable sur autoroute. Réservation en deux minutes sur le site.",
+      "caption": "TMAX 530 — 180 CHF pour 2 jours. Le compromis vélo-cargo-supercar.",
+      "hashtags": ["#zenithmoto", "#tmax", "#yamaha", "#scootermax", "#bienne", "#weekendmoto"]
+    },
+    {
+      "id": 3,
+      "season": "decouverte",
+      "moto_id": "honda-x-adv-750",
+      "platform": ["instagram", "tiktok", "facebook"],
+      "script": "Nouveau dans la flotte : la Honda X-ADV 750. Mi-trail, mi-scooter, parfait pour les chemins forestiers du Jura. 216 francs le weekend, on vous donne aussi les meilleurs spots à explorer. À tester absolument.",
+      "caption": "Honda X-ADV 750 disponible chez ZenithMoto. Le crossover qui surprend.",
+      "hashtags": ["#zenithmoto", "#hondaxadv", "#xadv", "#advmoto", "#bienne", "#jurabernois"]
+    },
+    {
+      "id": 4,
+      "season": "ville",
+      "moto_id": "yamaha-x-max-300",
+      "platform": ["instagram", "facebook"],
+      "script": "Bienne, Bienne-Mâche, Nidau — déplace-toi en X-MAX 300, scooter agile et confortable. 144 francs le weekend, casque inclus. Idéal pour les déplacements pro pendant la semaine de réservation.",
+      "caption": "X-MAX 300. Mobilité urbaine sans compromis.",
+      "hashtags": ["#zenithmoto", "#xmax300", "#scootermax", "#bienne", "#mobiliteurbaine"]
+    },
+    {
+      "id": 5,
+      "season": "permis",
+      "moto_id": "yamaha-x-max-125",
+      "platform": ["instagram", "tiktok"],
+      "script": "Tu viens de passer ton permis A1 ? On a un X-MAX 125 prêt pour toi à ZenithMoto. 117 francs le weekend, prise en main encadrée si tu veux. Premier kilomètre, on s'occupe de tout.",
+      "caption": "Permis A1 fraîchement en poche ? On t'accompagne.",
+      "hashtags": ["#zenithmoto", "#xmax125", "#permismoto", "#a1", "#debutantmoto", "#bienne"]
+    },
+    {
+      "id": 6,
+      "season": "ete",
+      "moto_id": "yamaha-tracer-700",
+      "platform": ["instagram", "tiktok", "facebook"],
+      "script": "Été. Cols suisses. Tracer 700. Réserve une semaine, je te donne mon roadbook personnel : Susten, Furka, Grimsel, Nufenen. Le tour des quatre cols depuis Bienne, c'est jouable en quatre jours.",
+      "caption": "Roadbook 4 cols offert pour toute location semaine en juillet.",
+      "hashtags": ["#zenithmoto", "#colsalpes", "#susten", "#furka", "#grimsel", "#nufenen", "#tracerlife"]
+    },
+    {
+      "id": 7,
+      "season": "duo",
+      "moto_id": "honda-x-adv-750",
+      "platform": ["instagram", "facebook"],
+      "script": "Voyage à deux ce weekend ? La X-ADV 750 passe le passager confortablement. On fournit deux casques et deux blousons taille au choix. Réserve avant jeudi pour disponibilité garantie.",
+      "caption": "Weekend en duo — équipement complet inclus.",
+      "hashtags": ["#zenithmoto", "#xadv750", "#voyageduo", "#weekendmoto", "#bienne"]
+    },
+    {
+      "id": 8,
+      "season": "automne",
+      "moto_id": "yamaha-tmax-530",
+      "platform": ["instagram", "tiktok"],
+      "script": "Octobre, les couleurs du Jura sont au sommet. TMAX 530 silencieux et confortable, parfait pour la route du Chasseral et le détour par Saint-Imier. 180 francs le weekend.",
+      "caption": "Automne au Chasseral en TMAX. Réserve avant que la neige tombe.",
+      "hashtags": ["#zenithmoto", "#automne", "#chasseral", "#saintimier", "#tmax530"]
+    },
+    {
+      "id": 9,
+      "season": "tarif",
+      "moto_id": null,
+      "platform": ["instagram", "facebook", "tiktok"],
+      "script": "Petit récap des tarifs ZenithMoto 2026 : X-MAX 125 à 65 francs la journée, TMAX 530 à 100, Tracer 700 à 120, X-ADV 750 à 120 aussi. Weekend toujours à -10 pourcent. Réservation en ligne sans dépôt initial.",
+      "caption": "Tarifs ZenithMoto 2026. Transparents, sans surprise.",
+      "hashtags": ["#zenithmoto", "#locationmoto", "#tarifmoto", "#bienne", "#suisse"]
+    },
+    {
+      "id": 10,
+      "season": "experience",
+      "moto_id": "yamaha-tracer-700",
+      "platform": ["instagram", "tiktok"],
+      "script": "Ce qu'on me demande le plus souvent : quelle moto pour un premier roadtrip ? Réponse : la Tracer 700. Position droite, réservoir 17 litres, autonomie 300 kilomètres. Trois jours de location, tu connais le Jura par cœur.",
+      "caption": "Premier roadtrip ? Tracer 700, le bon choix.",
+      "hashtags": ["#zenithmoto", "#roadtripmoto", "#tracer700", "#jurabernois", "#premierevoyage"]
+    },
+    {
+      "id": 11,
+      "season": "service",
+      "moto_id": null,
+      "platform": ["instagram", "facebook"],
+      "script": "Chez ZenithMoto on inclut tout : casque, blouson, gants si tu veux, et même une top-case sur la Tracer. Pas de frais cachés, pas d'option payante. Le prix affiché c'est le prix final.",
+      "caption": "Tout inclus. Pas de surprise.",
+      "hashtags": ["#zenithmoto", "#equipementmoto", "#service", "#bienne", "#transparence"]
+    },
+    {
+      "id": 12,
+      "season": "fidelite",
+      "moto_id": null,
+      "platform": ["instagram", "tiktok"],
+      "script": "Tu as déjà loué chez ZenithMoto ? Petit cadeau pour les fidèles : 10 pourcent de réduction sur ta prochaine location, automatique dès le second booking. Aucun code à entrer.",
+      "caption": "Fidélité = -10% automatique dès la 2e location.",
+      "hashtags": ["#zenithmoto", "#fidelite", "#promo", "#bienne", "#locationmoto"]
+    }
+  ]
+}
