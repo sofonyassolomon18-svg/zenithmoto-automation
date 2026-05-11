@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "generated_at": "2026-05-11",
+    "sources": ["Honda press hondanews.eu (verified HD HEAD)", "Yamaha motorcycle.com CDN", "Yamaha PDPs"],
+    "total_urls": 30,
+    "license_note": "Press/editorial use OK. For commercial paid ads: request Yamaha Europe press portal registration + Hostettler CH for Honda commercial license"
+  },
+  "fleet": {
+    "honda-x-adv-750": {
+      "year": "2024-2026",
+      "slug": "honda-x-adv-750",
+      "supabase_folder": "flotte/honda-x-adv-750/",
+      "photos": [
+        { "url": "https://hondanews.eu/image/motorcycles/high/486178/1_1/5?v=2", "angle": "front-3-4-hero", "color": "Mat Iridium Gray", "year": 2025, "filename": "x-adv-2025-iridium-front34-hero.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486179/1_1/5?v=2", "angle": "left-side", "color": "Mat Iridium Gray", "year": 2025, "filename": "x-adv-2025-iridium-left.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486180/1_1/5?v=2", "angle": "right-side", "color": "Pearl Deep Mud Gray", "year": 2025, "filename": "x-adv-2025-mudgray-right.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486181/1_1/5?v=2", "angle": "front-detail", "color": "Mat Iridium Gray", "year": 2025, "filename": "x-adv-2025-iridium-front-detail.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486182/1_1/5?v=2", "angle": "rear-3-4", "color": "Pearl Glare White", "year": 2025, "filename": "x-adv-2025-white-rear.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486183/1_1/5?v=2", "angle": "action-riding", "color": "Mat Iridium Gray", "year": 2025, "filename": "x-adv-2025-iridium-action.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486184/1_1/5?v=2", "angle": "urban-riding", "color": "Pearl Glare White", "year": 2025, "filename": "x-adv-2025-white-urban.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486185/1_1/5?v=2", "angle": "cockpit-top", "color": "n/a", "year": 2025, "filename": "x-adv-2025-cockpit.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/486199/1_1/5?v=2", "angle": "studio-detail", "color": "Mat Iridium Gray", "year": 2025, "filename": "x-adv-2025-iridium-detail.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/541452/1_1/5?v=2", "angle": "hero-front34", "color": "26YM new palette", "year": 2026, "filename": "x-adv-2026-hero.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/541443/1_1/5?v=2", "angle": "side-profile", "color": "26YM new", "year": 2026, "filename": "x-adv-2026-side.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/443771/1_1/5?v=2", "angle": "studio-hero", "color": "Grand Prix Red SE", "year": 2024, "filename": "x-adv-2024-gpred-hero.jpg" },
+        { "url": "https://hondanews.eu/image/motorcycles/high/443767/1_1/5?v=2", "angle": "lineup-composite", "color": "Iridium + GP Red SE", "year": 2024, "filename": "x-adv-2024-lineup.jpg" }
+      ]
+    },
+    "yamaha-tracer-700": {
+      "year": "2025",
+      "slug": "yamaha-tracer-700",
+      "supabase_folder": "flotte/yamaha-tracer-700/",
+      "photos": [
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/05/14/19461/2025-yamaha-tracer-7-and-tracer-7-gt-announced-for-europe.jpg", "angle": "front-34-hero", "color": "Icon Blue", "year": 2025, "filename": "tracer-7-2025-iconblue-hero.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/05/14/14022/s-2025-yamaha-tracer-7-and-tracer-7-gt-gallery.jpg", "angle": "side-profile", "color": "Icon Blue", "year": 2025, "filename": "tracer-7-2025-iconblue-side.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/05/14/135917/s-2025-yamaha-tracer-7-and-tracer-7-gt-gallery.jpg", "angle": "cockpit-detail", "color": "n/a", "year": 2025, "filename": "tracer-7-2025-cockpit.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/05/14/13594/s-2025-yamaha-tracer-7-and-tracer-7-gt-gallery.jpg", "angle": "action-riding", "color": "Icon Blue", "year": 2025, "filename": "tracer-7-2025-action.jpg" }
+      ]
+    },
+    "yamaha-tmax-530": {
+      "year": "2025",
+      "slug": "yamaha-tmax-530",
+      "supabase_folder": "flotte/yamaha-tmax-530/",
+      "photos": [
+        { "url": "https://www.yamaha-motor.eu/cy/en/scooters/sport/pdp/tmax-2025/", "angle": "PDP-gallery-page", "color": "multiple", "year": 2025, "filename": "tmax-2025-pdp-gallery.html", "_note": "Page HTML — extract images via Right-click + Inspect" },
+        { "url": "https://www.yamaha-motor.eu/kv/en/scooters/sport/pdp/tmax-25th-anniversary/", "angle": "25th-anniversary", "color": "Anniversary Blue", "year": 2026, "filename": "tmax-25th-anniversary.html", "_note": "Anniversary edition page" }
+      ]
+    },
+    "yamaha-x-max-300": {
+      "year": "2025",
+      "slug": "yamaha-x-max-300",
+      "supabase_folder": "flotte/yamaha-x-max-300/",
+      "photos": [
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/01/17/14011/s-post.jpg", "angle": "studio-front34", "color": "Midnight Black", "year": 2025, "filename": "xmax-300-2025-black-front34.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/01/17/14015/s-post.jpg", "angle": "side-profile", "color": "Midnight Black", "year": 2025, "filename": "xmax-300-2025-black-side.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/01/17/14021/s-post.jpg", "angle": "front", "color": "Midnight Black", "year": 2025, "filename": "xmax-300-2025-black-front.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/01/17/14434/s-post.jpg", "angle": "front-34", "color": "Ceramic Grey EU", "year": 2025, "filename": "xmax-300-2025-ceramicgrey-front34.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/01/17/14442/s-post.jpg", "angle": "side", "color": "Dark Magma EU TechMAX", "year": 2025, "filename": "xmax-300-2025-darkmagma-side.jpg" },
+        { "url": "https://cdn-fastly.motorcycle.com/media/2025/01/17/14446/s-post.jpg", "angle": "rear-34", "color": "Dark Magma", "year": 2025, "filename": "xmax-300-2025-darkmagma-rear.jpg" }
+      ]
+    },
+    "yamaha-x-max-125": {
+      "year": "2025",
+      "slug": "yamaha-x-max-125",
+      "supabase_folder": "flotte/yamaha-x-max-125/",
+      "photos": [
+        { "url": "https://www.yamaha-motor.eu/gb/en/scooters/sport/pdp/xmax-125-2025/", "angle": "PDP-gallery", "color": "all variants", "year": 2025, "filename": "xmax-125-2025-pdp.html", "_note": "Page HTML — Yamaha Europe PDP" }
+      ]
+    }
+  }
+}
