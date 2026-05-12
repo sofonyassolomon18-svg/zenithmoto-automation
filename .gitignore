@@ -18,6 +18,7 @@ venv/
 # ── Local data ─────────────────────────────────────
 data/*.sqlite
 data/*.db
+data/dead-letter.jsonl
 
 # ── Obsidian (notes locales, pas pour le repo) ────
 obsidian_vault/
