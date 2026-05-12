@@ -10,7 +10,7 @@ function maskEmail(email) {
   if (!email || typeof email !== 'string') return '[no-email]';
   return email.replace(/(.{2}).*(@.*)/, '$1***$2');
 }
-const { notify } = require('./lib/telegram');
+const { notify, trackEvent } = require('./lib/telegram');
 const { upsert, select } = require('./lib/supabase');
 const { retry, deadLetter } = require('./lib/circuit-breaker');
 
@@ -121,6 +121,13 @@ async function recoverAbandonedBookings() {
       await _markRecoverySent(b.id, b.client_email);
       sent++;
       console.log(`[retention] recovery email → ${maskEmail(b.client_email)}`);
+      trackEvent({
+        kind: 'checkout',
+        booking_id: String(b.id),
+        customer: (b.client_name || '').split(/\s+/)[0] || null,
+        moto: b.moto || b.motorcycle || null,
+        meta: { recovery: true, email: b.client_email },
+      });
     } catch (e) {
       console.error(`[retention] recovery FAIL → ${maskEmail(b.client_email)}: ${e.message}`);
       deadLetter.push({ kind: 'recovery_email', booking_id: b.id, email: b.client_email, error: e.message });

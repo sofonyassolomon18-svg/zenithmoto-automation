@@ -420,6 +420,9 @@ function createWebhookServer() {
 
     console.log(`📨 Webhook reçu: ${event} → ${booking.client_name || 'unknown'}`);
 
+    const { trackEvent } = require('./lib/telegram');
+    const customerName = (booking.client_name || '').split(/\s+/)[0] || booking.client_name;
+
     try {
       if (event === 'booking_created') {
         await sendNotification(emailConfirmation(booking));
@@ -428,6 +431,16 @@ function createWebhookServer() {
         const bookings = loadBookings();
         bookings.push({ ...booking, reminder_sent: false, followup_sent: false });
         saveBookings(bookings);
+
+        // Funnel event: prospect → paid lifecycle (booking_created = paid if via webhook)
+        trackEvent({
+          kind: 'paid',
+          booking_id: booking.booking_id || booking.id,
+          customer: customerName,
+          moto: booking.moto_id || booking.motorcycle,
+          amount_chf: booking.price || null,
+          meta: { email: booking.client_email, start_date: booking.start_date },
+        });
 
         // VIP detection (3e+ location) : notif Telegram async, ne bloque pas la réponse webhook
         try {
@@ -444,6 +457,16 @@ function createWebhookServer() {
         const b = bookings.find(b => b.booking_id === booking.booking_id);
         if (b) b.followup_sent = true;
         saveBookings(bookings);
+      }
+
+      if (event === 'booking_cancelled') {
+        trackEvent({
+          kind: 'cancelled',
+          booking_id: booking.booking_id || booking.id,
+          customer: customerName,
+          moto: booking.moto_id || booking.motorcycle,
+          meta: { email: booking.client_email },
+        });
       }
 
       res.json({ success: true, event });

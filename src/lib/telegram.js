@@ -1,6 +1,6 @@
-// lib/telegram.js — wrapper unifié notifications (Telegram + Slack + Discord)
-// Partagé WebMake / ZenithMoto. Dépendance : axios (déjà installé).
+// lib/telegram.js — unified notifications (Telegram + Slack + Discord) + funnel_events dual-write
 const axios = require('axios');
+const { createClient } = require('@supabase/supabase-js');
 
 const ICONS = {
   info: 'ℹ️',
@@ -10,6 +10,13 @@ const ICONS = {
   error: '❌',
   money: '💰',
 };
+
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://edcvmgpcllhszxvthdzx.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+
+const supabase = SUPABASE_URL && SUPABASE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
 
 async function notify(text, level = 'info', opts = {}) {
   const icon = ICONS[level] || ICONS.info;
@@ -41,4 +48,54 @@ async function notify(text, level = 'info', opts = {}) {
   await Promise.all(calls);
 }
 
-module.exports = { notify };
+// Maps funnel event kind to emoji for Telegram message
+const KIND_EMOJI = {
+  prospect: '🔔',
+  checkout: '💳',
+  paid: '✅',
+  failed: '❌',
+  cancelled: '⚠️',
+};
+
+/**
+ * trackEvent — dual-write: Telegram alert + Supabase funnel_events INSERT
+ *
+ * Schema (funnel_events):
+ *   kind          funnel_event_kind  NOT NULL  — 'prospect'|'checkout'|'paid'|'failed'|'cancelled'
+ *   occurred_at   timestamptz        DEFAULT now()
+ *   source        text               DEFAULT 'v1'
+ *   booking_id    text
+ *   customer      text               — customer first name or full name
+ *   moto          text               — moto slug or display name
+ *   amount_chf    numeric(10,2)
+ *   meta          jsonb              DEFAULT '{}'
+ */
+async function trackEvent({ kind, booking_id, customer, moto, amount_chf, meta, source } = {}) {
+  const emoji = KIND_EMOJI[kind] || '📌';
+  const amt = amount_chf ? ` CHF ${amount_chf}` : '';
+  const msg = `${emoji} ${(kind || 'event').toUpperCase()}: ${customer || '?'} ${moto || ''}${amt}`.trim();
+
+  // Fire Telegram (non-blocking, never throws)
+  notify(msg, 'info', { project: 'zenithmoto' }).catch(() => {});
+
+  // Insert into funnel_events (non-blocking, never throws)
+  if (supabase) {
+    supabase
+      .from('funnel_events')
+      .insert({
+        kind,
+        booking_id: booking_id || null,
+        customer: customer || null,
+        moto: moto || null,
+        amount_chf: amount_chf || null,
+        meta: meta || {},
+        source: source || 'v1',
+      })
+      .then(({ error }) => {
+        if (error) console.warn('[funnel] insert failed:', error.message);
+      })
+      .catch(e => console.warn('[funnel] insert error:', e.message));
+  }
+}
+
+module.exports = { notify, trackEvent };
