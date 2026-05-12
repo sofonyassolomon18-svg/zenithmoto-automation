@@ -101,6 +101,67 @@ function emailReminder(booking) {
   };
 }
 
+function emailCalendlyLink(booking, calendlyUrl) {
+  const name = booking.client_name || 'cher client';
+  const firstName = name.split(/\s+/)[0] || name;
+  const moto = booking.motorcycle || booking.moto || booking.moto_id || 'votre moto';
+  return {
+    to: booking.client_email,
+    subject: `Réservez votre créneau de récupération — ${moto} · ZenithMoto`,
+    html: `
+<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;color:#2c2c2c">
+  <div style="background:#1a1a2e;padding:24px 32px;border-radius:8px 8px 0 0">
+    <span style="color:#fff;font-size:22px;font-weight:800">ZenithMoto</span>
+    <span style="color:#f0a500;font-size:22px">.</span>
+  </div>
+  <div style="background:#fff;padding:32px;border:1px solid #eee;border-top:none">
+    <h2 style="color:#1a1a2e;margin:0 0 20px">Dernière étape : choisissez votre créneau</h2>
+    <p>Bonjour <strong>${firstName}</strong>,</p>
+    <p>Merci pour votre réservation <strong>${moto}</strong> — le paiement est bien reçu.</p>
+    <p>Pour finaliser, sélectionnez votre créneau de récupération des clés :</p>
+    <div style="text-align:center;margin:28px 0">
+      <a href="${calendlyUrl}" style="background:#f0a500;color:#1a1a2e;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;display:inline-block">Choisir mon créneau</a>
+    </div>
+    <p style="font-size:13px;color:#666;text-align:center;margin:0 0 24px">ou copier ce lien : <a href="${calendlyUrl}" style="color:#1a1a2e">${calendlyUrl}</a></p>
+    <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:20px 0">
+      <p style="margin:0 0 8px;font-weight:600">À apporter le jour J :</p>
+      <ul style="margin:8px 0;line-height:2">
+        <li>Permis de conduire valide</li>
+        <li>Pièce d'identité</li>
+        <li>Carte de crédit pour la caution</li>
+      </ul>
+      <p style="margin:12px 0 0"><strong>Adresse :</strong> ZenithMoto, 2502 Bienne (BE) — l'adresse précise vous sera confirmée après la sélection du créneau.</p>
+    </div>
+    <p>Une question ? Répondez simplement à cet email.</p>
+    <p>À très vite sur la route !</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+    <p style="color:#666;font-size:13px">Sofonyas — ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
+  </div>
+</div>`,
+  };
+}
+
+// Persist generated link in bookings table (best-effort, swallow errors)
+async function patchBookingCalendlyUrl(bookingId, calendlyUrl) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_KEY;
+  if (!url || !key || !bookingId) return;
+  try {
+    await fetch(`${url}/rest/v1/bookings?id=eq.${bookingId}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ calendly_url: calendlyUrl }),
+    });
+  } catch (e) {
+    console.warn('[calendly] Supabase PATCH failed:', e.message);
+  }
+}
+
 function emailFollowUp(booking) {
   return {
     to: booking.client_email,
@@ -447,6 +508,34 @@ function createWebhookServer() {
           const { notifyVipOnNewBooking } = require('./retention');
           notifyVipOnNewBooking(booking).catch(e => console.warn('[webhook] VIP check failed:', e.message));
         } catch (e) { /* module loading guarded */ }
+
+        // Calendly single-use link generation + email pickup-slot booking
+        try {
+          const { createSchedulingLink } = require('./lib/calendly');
+          const motoSlug = booking.moto_slug || booking.moto_id || booking.motorcycle;
+          const cal = await createSchedulingLink(motoSlug, 1);
+          if (cal.url) {
+            await sendNotification(emailCalendlyLink(booking, cal.url));
+            console.log(`📅 Calendly link sent → ${maskEmail(booking.client_email)} : ${cal.url}`);
+            const { notify } = require('./lib/telegram');
+            if (typeof notify === 'function') {
+              notify(`📅 Calendly link sent to ${customerName} (${booking.moto_id || motoSlug}): ${cal.url}`)
+                .catch(e => console.warn('[calendly] telegram notify failed:', e.message));
+            }
+            await patchBookingCalendlyUrl(booking.booking_id || booking.id, cal.url);
+          } else {
+            console.warn(`[calendly] link gen failed for ${motoSlug}: ${JSON.stringify(cal).slice(0,200)}`);
+            try {
+              const { notify } = require('./lib/telegram');
+              if (typeof notify === 'function') {
+                notify(`⚠️ Calendly link gen failed for ${motoSlug}: ${JSON.stringify(cal).slice(0,200)}`)
+                  .catch(() => {});
+              }
+            } catch (_) {}
+          }
+        } catch (e) {
+          console.warn('[calendly] integration error:', e.message);
+        }
       }
 
       if (event === 'booking_completed') {
