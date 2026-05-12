@@ -1,10 +1,10 @@
-// Buffer access token health check
-// Buffer tokens n'ont pas d'auto-refresh. On ping /1/user.json quotidiennement
-// et on alerte Telegram si 401/403 (token expiré ou révoqué).
+// Buffer access token health check (GraphQL).
+// REST v1 (bufferapp.com/1/user.json) rejette les tokens OIDC depuis 2024-2025.
+// Migration vers api.buffer.com/graphql qui accepte le Bearer OIDC.
 
 const axios = require('axios');
+const buffer = require('./publishers/buffer');
 
-const BUFFER_API = 'https://api.bufferapp.com/1';
 const TG_BOT  = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
 
@@ -30,34 +30,27 @@ async function runBufferMonitor() {
   }
 
   try {
-    const r = await axios.get(`${BUFFER_API}/user.json`, {
-      params: { access_token: token },
-      timeout: 10000,
-      validateStatus: () => true, // on gère le status nous-mêmes
-    });
-
-    if (r.status === 200) {
-      const userId = r.data?.id || 'unknown';
-      console.log(`[buffer-monitor] OK · userId=${userId}`);
-      return { status: 'ok', userId };
+    const account = await buffer.ping();
+    if (account?.id) {
+      console.log(`[buffer-monitor] OK · accountId=${account.id}`);
+      return { status: 'ok', accountId: account.id };
     }
-
-    if (r.status === 401 || r.status === 403) {
-      const msg = `🚨 *Buffer token expiré/révoqué* (HTTP ${r.status})\n` +
-                  `Service : ZenithMoto Automation V1\n` +
-                  `Action : régénérer un access token sur https://buffer.com/developers/apps\n` +
-                  `Puis mettre à jour \`BUFFER_ACCESS_TOKEN\` sur Railway et redeploy.`;
-      console.error(`[buffer-monitor] TOKEN INVALIDE (${r.status}):`, r.data);
-      await notifyTelegram(msg);
-      return { status: 'expired', httpStatus: r.status };
-    }
-
-    // Autre code (5xx, 429, ...) — on log mais on n'alerte pas (transient)
-    console.warn(`[buffer-monitor] HTTP ${r.status} (transient?):`, r.data);
-    return { status: 'transient', httpStatus: r.status };
+    console.warn('[buffer-monitor] account vide — réponse inattendue');
+    return { status: 'transient', reason: 'empty-account' };
   } catch (e) {
-    console.error('[buffer-monitor] request failed:', e.message);
-    return { status: 'error', error: e.message };
+    const msg = e.message || '';
+    const isAuth = /401|403|unauthorized|forbidden|token/i.test(msg);
+    if (isAuth) {
+      const alert = `🚨 *Buffer token expiré/révoqué* (GraphQL)\n` +
+                    `Service : ZenithMoto Automation V1\n` +
+                    `Action : régénérer un access token sur https://buffer.com/developers/apps\n` +
+                    `Puis mettre à jour \`BUFFER_ACCESS_TOKEN\` sur Railway et redeploy.`;
+      console.error('[buffer-monitor] TOKEN INVALIDE:', msg);
+      await notifyTelegram(alert);
+      return { status: 'expired', error: msg };
+    }
+    console.warn('[buffer-monitor] erreur transitoire:', msg);
+    return { status: 'transient', error: msg };
   }
 }
 
