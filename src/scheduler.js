@@ -9,6 +9,10 @@ const { runBufferMonitor } = require('./buffer-monitor');
 const { recoverAbandonedBookings } = require('./retention');
 const { pollRenders } = require('./poll-renders');
 const { generateSocialAvatarPost } = require('./flows/social-avatar-post');
+const { runAutoReminder } = require('./auto-reminder-rental');
+const { runFleetAvailability } = require('./fleet-availability-tg');
+const { runPriceYieldMonitor } = require('./price-yield-monitor');
+const { runContentSchedulerPostiz } = require('./content-scheduler-postiz');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
@@ -133,6 +137,32 @@ function startScheduler() {
     } catch (e) { console.error('CRON heygen-social error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
+  // Auto-reminder H-24/48 — toutes les heures, dédupliqué via reminder_h24_sent
+  cron.schedule('0 * * * *', async () => {
+    try {
+      const r = await runAutoReminder();
+      if (r.sent > 0) console.log(`[CRON auto-reminder] sent=${r.sent} errors=${r.errors}`);
+    } catch (e) { console.error('CRON auto-reminder error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Fleet availability digest — tous les jours à 8h10
+  cron.schedule('10 8 * * *', async () => {
+    try { await runFleetAvailability(); }
+    catch (e) { console.error('CRON fleet-avail error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Price/yield monitor — lundis à 9h00
+  cron.schedule('0 9 * * 1', async () => {
+    try { await runPriceYieldMonitor(); }
+    catch (e) { console.error('CRON price-yield error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Content scheduler Postiz — dimanche 18h (planifie semaine suivante)
+  cron.schedule('0 18 * * 0', async () => {
+    try { await runContentSchedulerPostiz(); }
+    catch (e) { console.error('CRON content-scheduler-postiz error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
   // Weekly KPI report Telegram — dimanche 20h00 (debrief de fin de semaine)
   cron.schedule('0 20 * * 0', async () => {
     console.log('\n[CRON] Rapport KPI hebdomadaire Telegram...');
@@ -150,7 +180,11 @@ function startScheduler() {
   console.log('   🛒  Abandon cart recovery   → toutes les 30 min (9h-21h)');
   console.log('   📊  KPI hebdo Telegram      → dimanche 20:00');
   console.log('   🎬  HeyGen poll-renders     → toutes les 2 min');
-  console.log(`   👤  HeyGen avatar social    → ${process.env.HEYGEN_SOCIAL_CRON || '0 10 * * 3'} ${process.env.HEYGEN_SOCIAL_ENABLED === 'true' ? '(actif)' : '(désactivé)'}\n`);
+  console.log(`   👤  HeyGen avatar social    → ${process.env.HEYGEN_SOCIAL_CRON || '0 10 * * 3'} ${process.env.HEYGEN_SOCIAL_ENABLED === 'true' ? '(actif)' : '(désactivé)'}`);
+  console.log('   🕐  Auto-reminder H-24/48   → toutes les heures');
+  console.log('   🏍️  Fleet availability TG   → tous les jours à 08:10');
+  console.log('   💰  Price/yield monitor     → lundis à 09:00');
+  console.log('   📅  Content scheduler Postiz→ dimanche à 18:00\n');
 }
 
 module.exports = { startScheduler };
