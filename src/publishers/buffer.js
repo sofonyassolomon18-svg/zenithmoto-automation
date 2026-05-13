@@ -53,7 +53,7 @@ async function createPost({ channelId, text, mediaUrl, scheduledAt }) {
       source: 'API',
     },
   };
-  const q = `mutation Create($input: CreatePostInput!) { createPost(input: $input) { __typename } }`;
+  const q = `mutation Create($input: CreatePostInput!) { createPost(input: $input) { __typename id status scheduledAt } }`;
   return gql(q, variables);
 }
 

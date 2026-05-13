@@ -539,6 +539,13 @@ function createWebhookServer() {
       }
 
       if (event === 'booking_completed') {
+        trackEvent({
+          kind: 'completed',
+          booking_id: booking.booking_id || booking.id,
+          customer: customerName,
+          moto: booking.moto_id || booking.motorcycle,
+          meta: { email: booking.client_email },
+        });
         await sendNotification(emailFollowUp(booking));
         console.log(`⭐ Follow-up avis envoyé → ${maskEmail(booking.client_email)}`);
 

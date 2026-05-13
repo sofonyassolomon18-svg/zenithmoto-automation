@@ -6,11 +6,16 @@ const { startScheduler } = require('./src/scheduler');
 const PORT = process.env.PORT || process.env.WEBHOOK_PORT || 3001;
 
 function checkEnv() {
-  const required = ['GEMINI_API_KEY', 'GOOGLE_MAPS_API_KEY', 'GMAIL_APP_PASSWORD', 'SMTP_EMAIL'];
+  const required = ['GMAIL_APP_PASSWORD', 'SMTP_EMAIL'];
+  const optional = ['GEMINI_API_KEY', 'GOOGLE_MAPS_API_KEY'];
   const missing = required.filter(k => !process.env[k]);
   if (missing.length) {
     console.error('❌ Variables manquantes dans .env:', missing.join(', '));
     process.exit(1);
+  }
+  const missingOpt = optional.filter(k => !process.env[k]);
+  if (missingOpt.length) {
+    console.warn('⚠️  Optionnelles manquantes (certains crons désactivés):', missingOpt.join(', '));
   }
 }
 
