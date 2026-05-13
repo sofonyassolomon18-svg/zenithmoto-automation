@@ -509,6 +509,12 @@ function createWebhookServer() {
           notifyVipOnNewBooking(booking).catch(e => console.warn('[webhook] VIP check failed:', e.message));
         } catch (e) { /* module loading guarded */ }
 
+        // Referral : si le filleul réserve, déclencher la récompense parrain (async)
+        try {
+          const { processRefereeBooking } = require('./referral');
+          processRefereeBooking(booking.client_email).catch(e => console.warn('[webhook] referral check failed:', e.message));
+        } catch (e) { /* guard */ }
+
         // Calendly single-use link generation + email pickup-slot booking
         try {
           const { createSchedulingLink } = require('./lib/calendly');
@@ -553,6 +559,13 @@ function createWebhookServer() {
         const b = bookings.find(b => b.booking_id === booking.booking_id);
         if (b) b.followup_sent = true;
         saveBookings(bookings);
+
+        // Loyalty : +1 point sur location terminée (async, non bloquant)
+        try {
+          const { awardPoint } = require('./loyalty');
+          const lang = (booking.lang || 'fr').toLowerCase().startsWith('de') ? 'de' : 'fr';
+          awardPoint(booking.client_email, lang).catch(e => console.warn('[webhook] loyalty award failed:', e.message));
+        } catch (e) { /* guard */ }
       }
 
       if (event === 'booking_cancelled') {
@@ -689,6 +702,18 @@ function createWebhookServer() {
       res.status(500).json({ error: e.message });
     }
   });
+
+  // Growth/loyalty/referral/NPS endpoints
+  try {
+    const { mountLoyaltyRoutes } = require('./loyalty');
+    const { mountReferralRoutes } = require('./referral');
+    const { mountNpsRoutes } = require('./nps-rental');
+    mountLoyaltyRoutes(app);
+    mountReferralRoutes(app);
+    mountNpsRoutes(app);
+  } catch (e) {
+    console.warn('[routes:growth]', e.message);
+  }
 
   return app;
 }

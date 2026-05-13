@@ -16,6 +16,10 @@ const { runContentSchedulerPostiz } = require('./content-scheduler-postiz');
 const { runMorningBrief } = require('./jobs/morning-brief');
 const { runBackupDb } = require('./jobs/backup-db');
 const { runUptimeMonitor } = require('./jobs/uptime-monitor');
+const { runLoyaltyDaily } = require('./loyalty');
+const { sendOffseasonPromo } = require('./offseason-promo');
+const { sendSeasonOpening } = require('./season-opening');
+const { runNpsDaily } = require('./nps-rental');
 const { notify } = require('./lib/telegram');
 
 function startScheduler() {
@@ -217,7 +221,50 @@ function startScheduler() {
   console.log('   📅  Content scheduler Postiz→ dimanche à 18:00');
   console.log('   ☀️  Morning brief            → tous les jours à 08:00');
   console.log('   💾  DB backup nightly        → tous les jours à 02:00');
-  console.log('   🩺  Uptime self-ping         → toutes les 5 minutes\n');
+  console.log('   🩺  Uptime self-ping         → toutes les 5 minutes');
+
+  // Loyalty daily — tous les jours à 11h
+  cron.schedule('0 11 * * *', async () => {
+    try {
+      const r = await runLoyaltyDaily();
+      if (r.awarded > 0) console.log(`[CRON loyalty] awarded=${r.awarded}`);
+    } catch (e) { console.error('CRON loyalty error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // NPS daily — tous les jours à 10h30 (J+3 post-return, après Google review J+2 à 10h05)
+  cron.schedule('30 10 * * *', async () => {
+    try {
+      const r = await runNpsDaily();
+      if (r?.sent > 0) console.log(`[CRON nps] sent=${r.sent} date=${r.date}`);
+    } catch (e) { console.error('CRON nps error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Offseason promo cours hiver — 15 oct + 15 nov à 9h
+  cron.schedule('0 9 15 10,11 *', async () => {
+    try {
+      const r = await sendOffseasonPromo();
+      console.log(`[CRON offseason] sent=${r.sent || 0}`);
+    } catch (e) { console.error('CRON offseason error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Season opening campaign — 1 mars + 15 mars + 1 avril à 9h
+  cron.schedule('0 9 1,15 3 *', async () => {
+    try {
+      const r = await sendSeasonOpening();
+      console.log(`[CRON season] sent=${r.sent || 0} code=${r.code}`);
+    } catch (e) { console.error('CRON season error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+  cron.schedule('0 9 1 4 *', async () => {
+    try {
+      const r = await sendSeasonOpening();
+      console.log(`[CRON season-apr] sent=${r.sent || 0}`);
+    } catch (e) { console.error('CRON season-apr error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  console.log('   🏆  Loyalty daily            → tous les jours à 11:00');
+  console.log('   📊  NPS post-rental          → tous les jours à 10:30 (J+3)');
+  console.log('   ❄️  Offseason promo          → 15 oct + 15 nov à 09:00');
+  console.log('   🌷  Season opening           → 1+15 mars + 1 avril à 09:00\n');
 }
 
 module.exports = { startScheduler };
