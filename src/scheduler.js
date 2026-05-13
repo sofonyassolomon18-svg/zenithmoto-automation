@@ -13,6 +13,10 @@ const { runAutoReminder } = require('./auto-reminder-rental');
 const { runFleetAvailability } = require('./fleet-availability-tg');
 const { runPriceYieldMonitor } = require('./price-yield-monitor');
 const { runContentSchedulerPostiz } = require('./content-scheduler-postiz');
+const { runMorningBrief } = require('./jobs/morning-brief');
+const { runBackupDb } = require('./jobs/backup-db');
+const { runUptimeMonitor } = require('./jobs/uptime-monitor');
+const { notify } = require('./lib/telegram');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
@@ -169,6 +173,32 @@ function startScheduler() {
     try { await sendWeeklyKpiTelegram(); } catch (e) { console.error('CRON weekly-kpi error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
+  // Daily morning brief — tous les jours à 08:00 (pickups, returns, MTD revenue)
+  cron.schedule('0 8 * * *', async () => {
+    try { await runMorningBrief(); }
+    catch (e) {
+      console.error('CRON morning-brief error:', e.message);
+      notify(`morning-brief crashed: ${e.message}`, 'error', { project: 'zenithmoto' }).catch(() => {});
+    }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Nightly DB backup — 02:00 tous les jours (export JSON → bucket "backups")
+  cron.schedule('0 2 * * *', async () => {
+    try { await runBackupDb(); }
+    catch (e) {
+      console.error('CRON backup-db error:', e.message);
+      notify(`backup-db crashed: ${e.message}`, 'error', { project: 'zenithmoto' }).catch(() => {});
+    }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Uptime self-ping — toutes les 5 min (alerte après 3 échecs consécutifs)
+  cron.schedule('*/5 * * * *', async () => {
+    try { await runUptimeMonitor(); }
+    catch (e) {
+      console.error('CRON uptime-monitor error:', e.message);
+    }
+  }, { timezone: 'Europe/Zurich' });
+
   console.log('📅 Tâches programmées :');
   console.log('   🏍️  Posts réseaux sociaux  → tous les jours à 09:00');
   console.log('   ⏰  Rappels J-1             → tous les jours à 10:00');
@@ -184,7 +214,10 @@ function startScheduler() {
   console.log('   🕐  Auto-reminder H-24/48   → toutes les heures');
   console.log('   🏍️  Fleet availability TG   → tous les jours à 08:10');
   console.log('   💰  Price/yield monitor     → lundis à 09:00');
-  console.log('   📅  Content scheduler Postiz→ dimanche à 18:00\n');
+  console.log('   📅  Content scheduler Postiz→ dimanche à 18:00');
+  console.log('   ☀️  Morning brief            → tous les jours à 08:00');
+  console.log('   💾  DB backup nightly        → tous les jours à 02:00');
+  console.log('   🩺  Uptime self-ping         → toutes les 5 minutes\n');
 }
 
 module.exports = { startScheduler };
