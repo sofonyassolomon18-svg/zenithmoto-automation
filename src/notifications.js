@@ -798,13 +798,18 @@ function createWebhookServer() {
       return res.status(401).json({ error: 'unauthorized' });
     }
     try {
-      const { booking_id, amount_chf, reason } = req.body || {};
+      const { booking_id, amount_chf, reason, photos } = req.body || {};
       if (!booking_id) return res.status(400).json({ error: 'booking_id required' });
       if (!amount_chf || Number(amount_chf) <= 0) {
         return res.status(400).json({ error: 'amount_chf must be > 0' });
       }
       const { chargeDamage } = require('./caution-hold');
-      const result = await chargeDamage(booking_id, Number(amount_chf), reason || 'rental damage');
+      const result = await chargeDamage(
+        booking_id,
+        Number(amount_chf),
+        reason || 'rental damage',
+        { photos: Array.isArray(photos) ? photos.slice(0, 8) : [] }
+      );
       res.json({ ok: true, ...result });
     } catch (e) {
       res.status(500).json({ error: e.message });

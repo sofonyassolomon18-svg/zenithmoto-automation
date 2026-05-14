@@ -158,7 +158,81 @@ async function captureCaution(bookingId, amountCHF) {
 const MAX_DAMAGE_CHF = Number(process.env.MAX_DAMAGE_CHF || 5000);
 const IDEMPOTENCY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
-async function chargeDamage(bookingId, amountCHF, reason = 'rental damage') {
+/**
+ * Build a Resend-friendly HTML email with damage photos + amount + payment link.
+ */
+function _buildDamageEmail({ customerName, bookingId, amount, reason, photos, paymentLink, kind }) {
+  const photosHtml = (photos || []).slice(0, 8).map((url) => `
+    <td style="padding:4px"><img src="${url}" alt="dommage" style="width:130px;height:130px;object-fit:cover;border-radius:6px;border:1px solid #eee"/></td>
+  `).join('');
+  const payHtml = paymentLink
+    ? `<div style="text-align:center;margin:28px 0">
+         <a href="${paymentLink}" style="background:#f0a500;color:#1a1a2e;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;display:inline-block">Régler ${amount} CHF</a>
+       </div>
+       <p style="font-size:12px;color:#666;text-align:center;margin:0 0 24px">Lien sécurisé Stripe — paiement carte / TWINT / SEPA. Valide 14 jours.</p>`
+    : `<div style="background:#e7f5ee;border:1px solid #2da06b;border-radius:8px;padding:14px;margin:24px 0">
+         <p style="margin:0;color:#155c3b;font-weight:600">✅ Paiement de ${amount} CHF prélevé sur la carte enregistrée lors de votre réservation.</p>
+       </div>`;
+  const firstName = (customerName || 'cher client').split(/\s+/)[0];
+  return {
+    to: undefined, // injected by caller
+    subject: paymentLink
+      ? `Constat de dommage et facture — réservation ZM-${bookingId} · ${amount} CHF`
+      : `Constat de dommage et paiement — réservation ZM-${bookingId} · ${amount} CHF`,
+    html: `
+<div style="font-family:'Segoe UI',Arial,sans-serif;max-width:640px;margin:0 auto;color:#2c2c2c">
+  <div style="background:#1a1a2e;padding:24px 32px;border-radius:8px 8px 0 0">
+    <span style="color:#fff;font-size:22px;font-weight:800">ZenithMoto</span>
+    <span style="color:#f0a500;font-size:22px">.</span>
+  </div>
+  <div style="background:#fff;padding:32px;border:1px solid #eee;border-top:none">
+    <h2 style="color:#1a1a2e;margin:0 0 20px">Constat de dommage</h2>
+    <p>Bonjour <strong>${firstName}</strong>,</p>
+    <p>Suite à la restitution de votre location <strong>(réservation ZM-${bookingId})</strong>, des dommages ont été constatés. Vous trouverez ci-dessous le détail et les photos.</p>
+    <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:20px 0">
+      <p style="margin:8px 0">📄 <strong>Description :</strong> ${reason || '—'}</p>
+      <p style="margin:8px 0">💰 <strong>Montant :</strong> CHF ${amount}</p>
+      <p style="margin:8px 0;font-size:12px;color:#666">${kind === 'invoice_sent' ? 'Une facture Stripe vous a également été envoyée séparément (lien hosted Stripe).' : 'Reçu Stripe envoyé séparément.'}</p>
+    </div>
+    ${photosHtml ? `<p style="margin:16px 0 8px;font-weight:600">📸 Photos :</p><table cellpadding="0" cellspacing="0" border="0"><tr>${photosHtml}</tr></table>` : ''}
+    ${payHtml}
+    <p>Conformément à nos conditions générales, le locataire est responsable des dommages causés au véhicule dans la limite de la franchise (CHF 2'000). Pour toute contestation ou question, répondez simplement à cet email — nous reviendrons vers vous dans la journée.</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
+    <p style="color:#666;font-size:13px">L'équipe ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
+  </div>
+</div>`,
+  };
+}
+
+/**
+ * Send damage email via Resend HTTPS API (avoids SMTP blocked on Railway).
+ * No-op if RESEND_API_KEY missing or no recipient.
+ */
+async function _sendDamageEmail(to, payload) {
+  const key = process.env.RESEND_API_KEY;
+  if (!key || !to) return { skipped: true, reason: !key ? 'no_resend_key' : 'no_recipient' };
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM || 'ZenithMoto <noreply@zenithmoto.ch>',
+        to,
+        subject: payload.subject,
+        html: payload.html,
+      }),
+    });
+    const json = await res.json().catch(() => ({}));
+    return { sent: res.ok, id: json.id, status: res.status };
+  } catch (e) {
+    return { sent: false, error: e.message };
+  }
+}
+
+async function chargeDamage(bookingId, amountCHF, reason = 'rental damage', options = {}) {
   if (!stripe) throw new Error('STRIPE_SECRET_KEY missing');
   if (!bookingId) throw new Error('bookingId required');
   const amount = Number(amountCHF);
@@ -239,7 +313,26 @@ async function chargeDamage(bookingId, amountCHF, reason = 'rental damage') {
           'warn',
           { project: 'zenithmoto' }
         );
-        return { status: 'succeeded', method: 'off_session_pi', paymentIntentId: intent.id, amountCHF: amount };
+
+        // Custom email with photos + amount (payment already settled — no link).
+        const emailPayload = _buildDamageEmail({
+          customerName,
+          bookingId,
+          amount,
+          reason,
+          photos: options.photos || [],
+          paymentLink: null,
+          kind: 'pi_succeeded',
+        });
+        const emailResult = await _sendDamageEmail(customerEmail, emailPayload);
+
+        return {
+          status: 'succeeded',
+          method: 'off_session_pi',
+          paymentIntentId: intent.id,
+          amountCHF: amount,
+          email: emailResult,
+        };
       }
       // requires_action (3DS) — falls through to invoice path
     } catch (err) {
@@ -272,8 +365,9 @@ async function chargeDamage(bookingId, amountCHF, reason = 'rental damage') {
     auto_advance: true,
   });
 
-  await stripe.invoices.finalizeInvoice(invoice.id);
+  const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
   await stripe.invoices.sendInvoice(invoice.id);
+  const hostedInvoiceUrl = finalized.hosted_invoice_url || invoice.hosted_invoice_url || null;
 
   await upsert('damage_charges', {
     ...baseRecord,
@@ -289,7 +383,26 @@ async function chargeDamage(bookingId, amountCHF, reason = 'rental damage') {
     { project: 'zenithmoto' }
   );
 
-  return { status: 'invoice_sent', method: 'stripe_invoice', invoiceId: invoice.id, amountCHF: amount };
+  // Custom email with photos + damage details + Stripe payment link.
+  const emailPayload = _buildDamageEmail({
+    customerName,
+    bookingId,
+    amount,
+    reason,
+    photos: options.photos || [],
+    paymentLink: hostedInvoiceUrl,
+    kind: 'invoice_sent',
+  });
+  const emailResult = await _sendDamageEmail(customerEmail, emailPayload);
+
+  return {
+    status: 'invoice_sent',
+    method: 'stripe_invoice',
+    invoiceId: invoice.id,
+    invoiceUrl: hostedInvoiceUrl,
+    amountCHF: amount,
+    email: emailResult,
+  };
 }
 
 module.exports = { holdCaution, releaseCaution, captureCaution, chargeDamage, DEFAULT_CAUTION_CHF };
