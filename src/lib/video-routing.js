@@ -137,14 +137,36 @@ async function createVideo(job) {
     }
   }
 
-  // Reels et product_demo → Higgsfield direct
+  // Reels et product_demo → free providers rotation (Luma → Hailuo → Kling) puis Higgsfield manual
   if (job.useCase !== 'booking_confirm') {
+    try {
+      // Lazy require to keep ZM standalone (WebMake pipeline may not be installed locally)
+      // eslint-disable-next-line global-require
+      const { generateVideo } = require('../../../WebMake/pipeline/src/automation/free-video-gen');
+      const free = await generateVideo({
+        prompt: job.scriptText,
+        duration_s: job.duration_s || 6,
+        aspect: '9:16',
+      });
+      if (free?.ok) {
+        const ins = await _insertRender({
+          provider: free.provider,
+          videoId: free.video_url,
+          job,
+          status: 'completed',
+          fallbackReason: null,
+        });
+        return { ok: ins.ok, provider: free.provider, jobId: ins.id, video_url: free.video_url, error: ins.error };
+      }
+    } catch (e) {
+      // free providers exhausted or unavailable → fallback Higgsfield manual
+    }
     const ins = await _insertRender({
       provider: 'higgsfield',
       videoId: null,
       job,
       status: 'pending_manual',
-      fallbackReason: `${job.useCase}_prefers_higgsfield`,
+      fallbackReason: `${job.useCase}_free_exhausted_fallback_higgsfield`,
     });
     return { ok: ins.ok, provider: 'higgsfield_manual', jobId: ins.id, error: ins.error };
   }

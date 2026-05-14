@@ -514,6 +514,7 @@ async function checkAndSendReminders() {
 
 function createWebhookServer() {
   const app = express();
+  app.set('trust proxy', 1);
 
   // ── Sécurité : helmet (headers HTTP) ──────────────────────────────
   app.use(helmet({
