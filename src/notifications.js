@@ -790,6 +790,27 @@ function createWebhookServer() {
     }
   });
 
+  // ─── Damage admin: charge customer for damage (no-caution policy) ──────────
+  app.post('/admin/damage-charge', async (req, res) => {
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+      return res.status(401).json({ error: 'unauthorized' });
+    }
+    try {
+      const { booking_id, amount_chf, reason } = req.body || {};
+      if (!booking_id) return res.status(400).json({ error: 'booking_id required' });
+      if (!amount_chf || Number(amount_chf) <= 0) {
+        return res.status(400).json({ error: 'amount_chf must be > 0' });
+      }
+      const { chargeDamage } = require('./caution-hold');
+      const result = await chargeDamage(booking_id, Number(amount_chf), reason || 'rental damage');
+      res.json({ ok: true, ...result });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // ─── HeyGen admin endpoints ────────────────────────────────────────────────
   function _heygenAuth(req, res) {
     const authHeader = req.headers['authorization'] || '';
