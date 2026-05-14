@@ -51,7 +51,7 @@ function emailPickup(b) {
       <ul style="margin:8px 0;line-height:1.8">
         <li>Permis de conduire valide (cat. A / AM)</li>
         <li>Pièce d'identité</li>
-        <li>Carte de crédit (caution)</li>
+        <li>Moyen de paiement (carte ou TWINT) — pas de caution demandée</li>
         <li>Veste + gants recommandés</li>
       </ul>
     </div>

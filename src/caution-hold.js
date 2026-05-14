@@ -27,6 +27,13 @@ async function _getHold(bookingId) {
 }
 
 async function holdCaution(bookingId, amountCHF = DEFAULT_CAUTION_CHF) {
+  // ZenithMoto policy 2026-05-14 — rentals offered without security deposit.
+  // Hold creation is disabled. Damage charges, if any, are billed directly
+  // via Stripe invoice after the rental ends.
+  if (process.env.CAUTION_ENABLED !== '1') {
+    console.log(`[caution] disabled by policy — skipping hold for booking ${bookingId}`);
+    return { paymentIntentId: null, status: 'disabled', skipped: true };
+  }
   if (!stripe) throw new Error('STRIPE_SECRET_KEY missing');
   if (!bookingId) throw new Error('bookingId required');
 

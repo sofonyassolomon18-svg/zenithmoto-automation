@@ -23,9 +23,9 @@ const I18N = {
     to: 'Au',
     price: 'PRIX & CAUTION',
     rental: 'Prix location',
-    caution: 'Caution (bloquée carte)',
+    caution: 'Caution',
     terms: 'CONDITIONS GÉNÉRALES',
-    terms_body: '1. Le locataire confirme détenir un permis valide pour le véhicule.\n2. Le véhicule est rendu dans l\'état initial, plein d\'essence.\n3. En cas de dommage, la caution est débitée à hauteur du préjudice (max montant bloqué).\n4. Toute infraction routière est à la charge du locataire.\n5. Annulation gratuite >48h. <48h : 50% retenu. No-show : 100%.\n6. Assurance RC incluse, casco partielle. Franchise: CHF 2\'000.\n7. Litiges: for à Bienne, droit suisse.',
+    terms_body: '1. Le locataire confirme détenir un permis valide pour le véhicule.\n2. Le véhicule est rendu dans l\'état initial, plein d\'essence.\n3. Aucune caution n\'est prélevée. En cas de dommage, le locataire est responsable dans la limite de la franchise et facturé séparément.\n4. Toute infraction routière est à la charge du locataire.\n5. Annulation gratuite >72h. 24-72h : 50% retenu. <24h : 100%.\n6. Assurance RC incluse, casco partielle. Franchise: CHF 2\'000.\n7. Litiges: for à Bienne, droit suisse.',
     sign: 'SIGNATURE ÉLECTRONIQUE',
     sign_pending: 'En attente de signature électronique par email.',
   },
@@ -41,7 +41,7 @@ const I18N = {
     to: 'Bis',
     price: 'PREIS & KAUTION',
     rental: 'Mietpreis',
-    caution: 'Kaution (Kartenblockierung)',
+    caution: 'Kaution',
     terms: 'ALLGEMEINE BEDINGUNGEN',
     terms_body: '1. Der Mieter bestätigt einen gültigen Führerschein.\n2. Das Fahrzeug wird im Anfangszustand und vollgetankt zurückgegeben.\n3. Bei Schäden wird die Kaution belastet (max. blockierter Betrag).\n4. Verkehrsverstösse gehen zu Lasten des Mieters.\n5. Kostenlose Stornierung >48h. <48h: 50%. No-Show: 100%.\n6. HP-Versicherung inkl., Teilkasko. Selbstbehalt: CHF 2\'000.\n7. Gerichtsstand: Biel, Schweizer Recht.',
     sign: 'ELEKTRONISCHE UNTERSCHRIFT',
@@ -87,7 +87,7 @@ function buildPdf(booking, lang = 'fr') {
     doc.moveDown(0.3);
     doc.fontSize(10).fillColor('#0a0a0a')
       .text(`${t.rental}: CHF ${booking.amount_chf || 0}`)
-      .text(`${t.caution}: CHF ${booking.caution_chf || 1500}`);
+      .text(`${t.caution}: CHF 0`);
     doc.moveDown(0.8);
 
     doc.fontSize(12).fillColor('#d4a017').text(t.terms);

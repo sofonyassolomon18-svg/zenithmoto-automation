@@ -30,14 +30,71 @@ function saveBookings(bookings) {
   fs.writeFileSync(BOOKINGS_FILE, JSON.stringify(bookings, null, 2));
 }
 
-function formatDate(iso) {
-  return new Date(iso).toLocaleDateString('fr-CH', { day: '2-digit', month: 'long', year: 'numeric' });
+function formatDate(iso, lang = 'fr') {
+  const locale = lang === 'de' ? 'de-CH' : lang === 'it' ? 'it-CH' : 'fr-CH';
+  return new Date(iso).toLocaleDateString(locale, { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function emailConfirmation(booking) {
+function normalizeLang(lang) {
+  const l = String(lang || 'fr').toLowerCase().slice(0, 2);
+  if (l === 'de') return 'de';
+  if (l === 'it') return 'it';
+  return 'fr';
+}
+
+function emailConfirmation(booking, lang = 'fr') {
+  const L = normalizeLang(lang);
+  const t = {
+    fr: {
+      subject: `✅ Réservation confirmée — ${booking.motorcycle} · ZenithMoto`,
+      title: 'Votre réservation est confirmée 🎉',
+      hi: 'Bonjour', intro: 'Nous avons bien reçu votre réservation. Voici le récapitulatif :',
+      moto: 'Moto', start: 'Début', end: 'Fin', amount: 'Montant', bookingId: 'N° réservation',
+      info: 'Informations importantes :',
+      bullets: [
+        'Présentez-vous avec votre permis de conduire valide',
+        'Location sans caution — aucun dépôt de garantie demandé',
+        'Casque fourni inclus dans la location',
+      ],
+      reply: 'En cas de question, répondez simplement à cet email.',
+      bye: 'Bonne route ! 🛣️',
+      team: "L'équipe ZenithMoto",
+    },
+    de: {
+      subject: `✅ Reservierung bestätigt — ${booking.motorcycle} · ZenithMoto`,
+      title: 'Ihre Reservierung ist bestätigt 🎉',
+      hi: 'Hallo', intro: 'Wir haben Ihre Reservierung erhalten. Hier ist die Übersicht:',
+      moto: 'Motorrad', start: 'Beginn', end: 'Ende', amount: 'Betrag', bookingId: 'Reservierungs-Nr.',
+      info: 'Wichtige Informationen:',
+      bullets: [
+        'Bringen Sie Ihren gültigen Führerschein mit',
+        'Vermietung ohne Kaution — keine Sicherheitsleistung erforderlich',
+        'Helm ist in der Miete inbegriffen',
+      ],
+      reply: 'Bei Fragen antworten Sie einfach auf diese E-Mail.',
+      bye: 'Gute Fahrt! 🛣️',
+      team: 'Das ZenithMoto-Team',
+    },
+    it: {
+      subject: `✅ Prenotazione confermata — ${booking.motorcycle} · ZenithMoto`,
+      title: 'La sua prenotazione è confermata 🎉',
+      hi: 'Buongiorno', intro: 'Abbiamo ricevuto la sua prenotazione. Ecco il riepilogo:',
+      moto: 'Moto', start: 'Inizio', end: 'Fine', amount: 'Importo', bookingId: 'N° prenotazione',
+      info: 'Informazioni importanti:',
+      bullets: [
+        'Si presenti con la sua patente valida',
+        'Una cauzione sarà richiesta al ritiro',
+        'Casco fornito incluso nel noleggio',
+      ],
+      reply: 'Per qualsiasi domanda, risponda semplicemente a questa email.',
+      bye: 'Buon viaggio! 🛣️',
+      team: 'Il team ZenithMoto',
+    },
+  }[L];
+
   return {
     to: booking.client_email,
-    subject: `✅ Réservation confirmée — ${booking.motorcycle} · ZenithMoto`,
+    subject: t.subject,
     html: `
 <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;color:#2c2c2c">
   <div style="background:#1a1a2e;padding:24px 32px;border-radius:8px 8px 0 0">
@@ -45,35 +102,79 @@ function emailConfirmation(booking) {
     <span style="color:#f0a500;font-size:22px">.</span>
   </div>
   <div style="background:#fff;padding:32px;border:1px solid #eee;border-top:none">
-    <h2 style="color:#1a1a2e;margin:0 0 20px">Votre réservation est confirmée 🎉</h2>
-    <p>Bonjour <strong>${booking.client_name}</strong>,</p>
-    <p>Nous avons bien reçu votre réservation. Voici le récapitulatif :</p>
+    <h2 style="color:#1a1a2e;margin:0 0 20px">${t.title}</h2>
+    <p>${t.hi} <strong>${booking.client_name}</strong>,</p>
+    <p>${t.intro}</p>
     <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:20px 0">
-      <p style="margin:8px 0">🏍️ <strong>Moto :</strong> ${booking.motorcycle}</p>
-      <p style="margin:8px 0">📅 <strong>Début :</strong> ${formatDate(booking.start_date)}</p>
-      <p style="margin:8px 0">📅 <strong>Fin :</strong> ${formatDate(booking.end_date)}</p>
-      ${booking.price ? `<p style="margin:8px 0">💰 <strong>Montant :</strong> CHF ${booking.price}</p>` : ''}
-      ${booking.booking_id ? `<p style="margin:8px 0">🔖 <strong>N° réservation :</strong> ${booking.booking_id}</p>` : ''}
+      <p style="margin:8px 0">🏍️ <strong>${t.moto} :</strong> ${booking.motorcycle}</p>
+      <p style="margin:8px 0">📅 <strong>${t.start} :</strong> ${formatDate(booking.start_date, L)}</p>
+      <p style="margin:8px 0">📅 <strong>${t.end} :</strong> ${formatDate(booking.end_date, L)}</p>
+      ${booking.price ? `<p style="margin:8px 0">💰 <strong>${t.amount} :</strong> CHF ${booking.price}</p>` : ''}
+      ${booking.booking_id ? `<p style="margin:8px 0">🔖 <strong>${t.bookingId} :</strong> ${booking.booking_id}</p>` : ''}
     </div>
-    <p><strong>Informations importantes :</strong></p>
+    <p><strong>${t.info}</strong></p>
     <ul style="line-height:2">
-      <li>Présentez-vous avec votre permis de conduire valide</li>
-      <li>Un dépôt de garantie sera demandé à la prise en charge</li>
-      <li>Casque fourni inclus dans la location</li>
+      ${t.bullets.map(b => `<li>${b}</li>`).join('\n      ')}
     </ul>
-    <p>En cas de question, répondez simplement à cet email.</p>
-    <p>Bonne route ! 🛣️</p>
+    <p>${t.reply}</p>
+    <p>${t.bye}</p>
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-    <p style="color:#666;font-size:13px">L'équipe ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
+    <p style="color:#666;font-size:13px">${t.team}<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
   </div>
 </div>`,
   };
 }
 
-function emailReminder(booking) {
+function emailReminder(booking, lang = 'fr') {
+  const L = normalizeLang(lang);
+  const t = {
+    fr: {
+      subject: `⏰ Rappel : votre location ${booking.motorcycle} commence demain — ZenithMoto`,
+      title: "C'est demain ! 🏍️", hi: 'Bonjour',
+      body: `Votre location de la <strong>${booking.motorcycle}</strong> commence demain le <strong>${formatDate(booking.start_date, L)}</strong>.`,
+      checklist: '📋 Checklist avant de venir :',
+      bullets: [
+        '✅ Permis de conduire valide (catégorie A ou AM selon la moto)',
+        "✅ Pièce d'identité",
+        '✅ Moyen de paiement (carte ou TWINT) pour le solde éventuel',
+        '✅ Tenue adaptée (veste, gants recommandés)',
+      ],
+      bye: 'On vous attend demain. À bientôt ! 👋',
+      team: "L'équipe ZenithMoto",
+    },
+    de: {
+      subject: `⏰ Erinnerung: Ihre Miete ${booking.motorcycle} beginnt morgen — ZenithMoto`,
+      title: 'Es ist morgen so weit! 🏍️', hi: 'Hallo',
+      body: `Ihre Miete der <strong>${booking.motorcycle}</strong> beginnt morgen am <strong>${formatDate(booking.start_date, L)}</strong>.`,
+      checklist: '📋 Checkliste vor der Abholung:',
+      bullets: [
+        '✅ Gültiger Führerschein (Kategorie A oder AM je nach Motorrad)',
+        '✅ Ausweis',
+        '✅ Zahlungsmittel (Karte oder TWINT) für allfälligen Restbetrag',
+        '✅ Passende Kleidung (Jacke, Handschuhe empfohlen)',
+      ],
+      bye: 'Wir erwarten Sie morgen. Bis bald! 👋',
+      team: 'Das ZenithMoto-Team',
+    },
+    it: {
+      subject: `⏰ Promemoria: il suo noleggio ${booking.motorcycle} inizia domani — ZenithMoto`,
+      title: 'È domani! 🏍️', hi: 'Buongiorno',
+      body: `Il suo noleggio della <strong>${booking.motorcycle}</strong> inizia domani il <strong>${formatDate(booking.start_date, L)}</strong>.`,
+      checklist: '📋 Checklist prima di venire:',
+      bullets: [
+        '✅ Patente di guida valida (categoria A o AM secondo la moto)',
+        "✅ Documento d'identità",
+        '✅ Carta di credito per la cauzione',
+        '✅ Abbigliamento adatto (giacca, guanti consigliati)',
+      ],
+      bye: 'La aspettiamo domani. A presto! 👋',
+      team: 'Il team ZenithMoto',
+    },
+  }[L];
+
   return {
     to: booking.client_email,
-    subject: `⏰ Rappel : votre location ${booking.motorcycle} commence demain — ZenithMoto`,
+    subject: t.subject,
     html: `
 <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;color:#2c2c2c">
   <div style="background:#1a1a2e;padding:24px 32px;border-radius:8px 8px 0 0">
@@ -81,33 +182,76 @@ function emailReminder(booking) {
     <span style="color:#f0a500;font-size:22px">.</span>
   </div>
   <div style="background:#fff;padding:32px;border:1px solid #eee;border-top:none">
-    <h2 style="color:#1a1a2e;margin:0 0 20px">C'est demain ! 🏍️</h2>
-    <p>Bonjour <strong>${booking.client_name}</strong>,</p>
-    <p>Votre location de la <strong>${booking.motorcycle}</strong> commence demain le <strong>${formatDate(booking.start_date)}</strong>.</p>
+    <h2 style="color:#1a1a2e;margin:0 0 20px">${t.title}</h2>
+    <p>${t.hi} <strong>${booking.client_name}</strong>,</p>
+    <p>${t.body}</p>
     <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:8px;padding:16px;margin:20px 0">
-      <p style="margin:0;font-weight:600">📋 Checklist avant de venir :</p>
+      <p style="margin:0;font-weight:600">${t.checklist}</p>
       <ul style="margin:8px 0;line-height:2">
-        <li>✅ Permis de conduire valide (catégorie A ou AM selon la moto)</li>
-        <li>✅ Pièce d'identité</li>
-        <li>✅ Carte de crédit pour le dépôt de garantie</li>
-        <li>✅ Tenue adaptée (veste, gants recommandés)</li>
+        ${t.bullets.map(b => `<li>${b}</li>`).join('\n        ')}
       </ul>
     </div>
-    <p>On vous attend demain. À bientôt ! 👋</p>
+    <p>${t.bye}</p>
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-    <p style="color:#666;font-size:13px">L'équipe ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
+    <p style="color:#666;font-size:13px">${t.team}<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
   </div>
 </div>`,
   };
 }
 
-function emailCalendlyLink(booking, calendlyUrl) {
+function emailCalendlyLink(booking, calendlyUrl, lang = 'fr') {
+  const L = normalizeLang(lang);
   const name = booking.client_name || 'cher client';
   const firstName = name.split(/\s+/)[0] || name;
   const moto = booking.motorcycle || booking.moto || booking.moto_id || 'votre moto';
+  const t = {
+    fr: {
+      subject: `Réservez votre créneau de récupération — ${moto} · ZenithMoto`,
+      title: 'Dernière étape : choisissez votre créneau', hi: 'Bonjour',
+      intro: `Merci pour votre réservation <strong>${moto}</strong> — le paiement est bien reçu.`,
+      cta_intro: 'Pour finaliser, sélectionnez votre créneau de récupération des clés :',
+      cta: 'Choisir mon créneau',
+      copyLink: 'ou copier ce lien',
+      bring: 'À apporter le jour J :',
+      bullets: ['Permis de conduire valide', "Pièce d'identité", 'Aucune caution demandée'],
+      address: `<strong>Adresse :</strong> ZenithMoto, 2502 Bienne (BE) — l'adresse précise vous sera confirmée après la sélection du créneau.`,
+      question: 'Une question ? Répondez simplement à cet email.',
+      bye: 'À très vite sur la route !',
+      team: 'Sofonyas — ZenithMoto',
+    },
+    de: {
+      subject: `Wählen Sie Ihren Abholtermin — ${moto} · ZenithMoto`,
+      title: 'Letzter Schritt: wählen Sie Ihren Termin', hi: 'Hallo',
+      intro: `Danke für Ihre Reservierung <strong>${moto}</strong> — die Zahlung ist eingegangen.`,
+      cta_intro: 'Um abzuschliessen, wählen Sie bitte Ihren Termin für die Schlüsselübergabe:',
+      cta: 'Termin wählen',
+      copyLink: 'oder Link kopieren',
+      bring: 'Am Termin mitbringen:',
+      bullets: ['Gültiger Führerschein', 'Ausweis', 'Keine Kaution verlangt'],
+      address: `<strong>Adresse:</strong> ZenithMoto, 2502 Biel/Bienne (BE) — die genaue Adresse wird Ihnen nach der Terminwahl bestätigt.`,
+      question: 'Eine Frage? Antworten Sie einfach auf diese E-Mail.',
+      bye: 'Bis bald auf der Strasse!',
+      team: 'Sofonyas — ZenithMoto',
+    },
+    it: {
+      subject: `Scelga il suo orario di ritiro — ${moto} · ZenithMoto`,
+      title: 'Ultimo passaggio: scelga il suo orario', hi: 'Buongiorno',
+      intro: `Grazie per la sua prenotazione <strong>${moto}</strong> — il pagamento è stato ricevuto.`,
+      cta_intro: 'Per finalizzare, selezioni il suo orario di ritiro delle chiavi:',
+      cta: 'Scegli il tuo orario',
+      copyLink: 'o copia questo link',
+      bring: 'Da portare il giorno del ritiro:',
+      bullets: ['Patente di guida valida', "Documento d'identità", 'Carta di credito per la cauzione'],
+      address: `<strong>Indirizzo:</strong> ZenithMoto, 2502 Bienne (BE) — l'indirizzo preciso le sarà confermato dopo la scelta dell'orario.`,
+      question: 'Una domanda? Risponda semplicemente a questa email.',
+      bye: 'A presto sulla strada!',
+      team: 'Sofonyas — ZenithMoto',
+    },
+  }[L];
+
   return {
     to: booking.client_email,
-    subject: `Réservez votre créneau de récupération — ${moto} · ZenithMoto`,
+    subject: t.subject,
     html: `
 <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:600px;margin:0 auto;color:#2c2c2c">
   <div style="background:#1a1a2e;padding:24px 32px;border-radius:8px 8px 0 0">
@@ -115,27 +259,25 @@ function emailCalendlyLink(booking, calendlyUrl) {
     <span style="color:#f0a500;font-size:22px">.</span>
   </div>
   <div style="background:#fff;padding:32px;border:1px solid #eee;border-top:none">
-    <h2 style="color:#1a1a2e;margin:0 0 20px">Dernière étape : choisissez votre créneau</h2>
-    <p>Bonjour <strong>${firstName}</strong>,</p>
-    <p>Merci pour votre réservation <strong>${moto}</strong> — le paiement est bien reçu.</p>
-    <p>Pour finaliser, sélectionnez votre créneau de récupération des clés :</p>
+    <h2 style="color:#1a1a2e;margin:0 0 20px">${t.title}</h2>
+    <p>${t.hi} <strong>${firstName}</strong>,</p>
+    <p>${t.intro}</p>
+    <p>${t.cta_intro}</p>
     <div style="text-align:center;margin:28px 0">
-      <a href="${calendlyUrl}" style="background:#f0a500;color:#1a1a2e;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;display:inline-block">Choisir mon créneau</a>
+      <a href="${calendlyUrl}" style="background:#f0a500;color:#1a1a2e;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;text-decoration:none;display:inline-block">${t.cta}</a>
     </div>
-    <p style="font-size:13px;color:#666;text-align:center;margin:0 0 24px">ou copier ce lien : <a href="${calendlyUrl}" style="color:#1a1a2e">${calendlyUrl}</a></p>
+    <p style="font-size:13px;color:#666;text-align:center;margin:0 0 24px">${t.copyLink} : <a href="${calendlyUrl}" style="color:#1a1a2e">${calendlyUrl}</a></p>
     <div style="background:#f8f8f8;border-radius:8px;padding:20px;margin:20px 0">
-      <p style="margin:0 0 8px;font-weight:600">À apporter le jour J :</p>
+      <p style="margin:0 0 8px;font-weight:600">${t.bring}</p>
       <ul style="margin:8px 0;line-height:2">
-        <li>Permis de conduire valide</li>
-        <li>Pièce d'identité</li>
-        <li>Carte de crédit pour la caution</li>
+        ${t.bullets.map(b => `<li>${b}</li>`).join('\n        ')}
       </ul>
-      <p style="margin:12px 0 0"><strong>Adresse :</strong> ZenithMoto, 2502 Bienne (BE) — l'adresse précise vous sera confirmée après la sélection du créneau.</p>
+      <p style="margin:12px 0 0">${t.address}</p>
     </div>
-    <p>Une question ? Répondez simplement à cet email.</p>
-    <p>À très vite sur la route !</p>
+    <p>${t.question}</p>
+    <p>${t.bye}</p>
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0">
-    <p style="color:#666;font-size:13px">Sofonyas — ZenithMoto<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
+    <p style="color:#666;font-size:13px">${t.team}<br>zenithmoto.ch@gmail.com · zenithmoto.ch</p>
   </div>
 </div>`,
   };
