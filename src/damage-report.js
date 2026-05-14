@@ -3,7 +3,7 @@
 const express = require('express');
 const { upsert, select } = require('./lib/supabase');
 const { notify } = require('./lib/telegram');
-const { captureCaution } = require('./caution-hold');
+const { captureCaution, chargeDamage } = require('./caution-hold');
 
 const router = express.Router();
 
@@ -31,11 +31,15 @@ router.post('/damage-report', express.json({ limit: '2mb' }), async (req, res) =
 
   if (amount_chf && Number(amount_chf) > 0) {
     try {
-      const capture = await captureCaution(booking_id, Number(amount_chf));
-      return res.json({ ok: true, capture });
+      // Default no-caution policy → bill via chargeDamage (off-session PI then Invoice fallback).
+      // If CAUTION_ENABLED=1, fall back to legacy captureCaution.
+      const charge = process.env.CAUTION_ENABLED === '1'
+        ? await captureCaution(booking_id, Number(amount_chf))
+        : await chargeDamage(booking_id, Number(amount_chf), notes ? `dommage: ${notes.slice(0, 80)}` : 'rental damage');
+      return res.json({ ok: true, charge });
     } catch (e) {
-      await notify(`Damage capture failed booking ${booking_id}: ${e.message}`, 'error', { project: 'zenithmoto' });
-      return res.json({ ok: true, capture_error: e.message });
+      await notify(`Damage charge failed booking ${booking_id}: ${e.message}`, 'error', { project: 'zenithmoto' });
+      return res.json({ ok: true, charge_error: e.message });
     }
   }
 

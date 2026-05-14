@@ -145,4 +145,124 @@ async function captureCaution(bookingId, amountCHF) {
   return { status: partial ? 'partial_captured' : 'captured', amountCHF: finalAmt / 100, paymentIntentId: intent.id };
 }
 
-module.exports = { holdCaution, releaseCaution, captureCaution, DEFAULT_CAUTION_CHF };
+/**
+ * chargeDamage — bill the customer for damage after a no-deposit rental.
+ * Strategy:
+ *   1. Try an off-session PaymentIntent against the stored PaymentMethod
+ *      (recorded from the original booking checkout). Best UX, near-instant.
+ *   2. If no PM on file, the off-session charge fails, or 3DS authentication
+ *      is required, fall back to a hosted Stripe Invoice emailed to the
+ *      customer. Always works; legal trail; ~24h to settle.
+ * Persists the outcome in `damage_charges` table and notifies via Telegram.
+ */
+async function chargeDamage(bookingId, amountCHF, reason = 'rental damage') {
+  if (!stripe) throw new Error('STRIPE_SECRET_KEY missing');
+  if (!bookingId) throw new Error('bookingId required');
+  const amount = Number(amountCHF);
+  if (!amount || amount <= 0) throw new Error('amountCHF must be > 0');
+
+  const booking = await _getBooking(bookingId);
+  if (!booking) throw new Error(`booking ${bookingId} not found`);
+
+  const customerEmail = booking.customer_email || booking.client_email;
+  const customerName = booking.customer_name || booking.client_name || '';
+  let customerStripeId = booking.stripe_customer_id || null;
+  const paymentMethodId = booking.stripe_payment_method_id || null;
+
+  // Ensure we have a Stripe Customer (needed for both paths)
+  if (!customerStripeId && customerEmail) {
+    const customer = await stripe.customers.create({
+      email: customerEmail,
+      name: customerName || undefined,
+      metadata: { project: 'zenithmoto', booking_id: String(bookingId) },
+    });
+    customerStripeId = customer.id;
+  }
+
+  const baseRecord = {
+    booking_id: bookingId,
+    amount_chf: amount,
+    reason,
+    created_at: new Date().toISOString(),
+  };
+
+  // Path A — off-session charge against stored PaymentMethod
+  if (paymentMethodId && customerStripeId) {
+    try {
+      const intent = await stripe.paymentIntents.create({
+        amount: chfToCents(amount),
+        currency: 'chf',
+        customer: customerStripeId,
+        payment_method: paymentMethodId,
+        confirm: true,
+        off_session: true,
+        description: `ZenithMoto — ${reason} (booking ${bookingId})`,
+        metadata: { project: 'zenithmoto', booking_id: String(bookingId), kind: 'damage_charge' },
+      });
+
+      if (intent.status === 'succeeded') {
+        await upsert('damage_charges', {
+          ...baseRecord,
+          method: 'off_session_pi',
+          payment_intent_id: intent.id,
+          status: 'succeeded',
+        });
+        await notify(
+          `💳 Damage charged CHF ${amount} booking ${bookingId} (off-session OK)`,
+          'warn',
+          { project: 'zenithmoto' }
+        );
+        return { status: 'succeeded', method: 'off_session_pi', paymentIntentId: intent.id, amountCHF: amount };
+      }
+      // requires_action (3DS) — falls through to invoice path
+    } catch (err) {
+      // Authentication required, card declined, etc. — fall through to invoice
+      await notify(
+        `⚠️ Off-session charge failed booking ${bookingId} (${err.code || err.message}). Falling back to invoice.`,
+        'warn',
+        { project: 'zenithmoto' }
+      );
+    }
+  }
+
+  // Path B — hosted Stripe Invoice emailed to customer
+  if (!customerStripeId) throw new Error('cannot create invoice: no customer/email on booking');
+
+  const invoiceItem = await stripe.invoiceItems.create({
+    customer: customerStripeId,
+    amount: chfToCents(amount),
+    currency: 'chf',
+    description: `ZenithMoto — ${reason} (réservation ${bookingId})`,
+    metadata: { project: 'zenithmoto', booking_id: String(bookingId), kind: 'damage_charge' },
+  });
+
+  const invoice = await stripe.invoices.create({
+    customer: customerStripeId,
+    collection_method: 'send_invoice',
+    days_until_due: 14,
+    description: `Facture de dommages — réservation ZenithMoto #${bookingId}`,
+    metadata: { project: 'zenithmoto', booking_id: String(bookingId), kind: 'damage_charge' },
+    auto_advance: true,
+  });
+
+  await stripe.invoices.finalizeInvoice(invoice.id);
+  await stripe.invoices.sendInvoice(invoice.id);
+
+  await upsert('damage_charges', {
+    ...baseRecord,
+    method: 'stripe_invoice',
+    invoice_id: invoice.id,
+    invoice_item_id: invoiceItem.id,
+    status: 'sent',
+  });
+
+  await notify(
+    `📧 Damage invoice sent CHF ${amount} booking ${bookingId} (${customerEmail}). Due in 14 days.`,
+    'warn',
+    { project: 'zenithmoto' }
+  );
+
+  return { status: 'invoice_sent', method: 'stripe_invoice', invoiceId: invoice.id, amountCHF: amount };
+}
+
+module.exports = { holdCaution, releaseCaution, captureCaution, chargeDamage, DEFAULT_CAUTION_CHF };
