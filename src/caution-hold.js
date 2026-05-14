@@ -155,11 +155,38 @@ async function captureCaution(bookingId, amountCHF) {
  *      customer. Always works; legal trail; ~24h to settle.
  * Persists the outcome in `damage_charges` table and notifies via Telegram.
  */
+const MAX_DAMAGE_CHF = Number(process.env.MAX_DAMAGE_CHF || 5000);
+const IDEMPOTENCY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
 async function chargeDamage(bookingId, amountCHF, reason = 'rental damage') {
   if (!stripe) throw new Error('STRIPE_SECRET_KEY missing');
   if (!bookingId) throw new Error('bookingId required');
   const amount = Number(amountCHF);
   if (!amount || amount <= 0) throw new Error('amountCHF must be > 0');
+  if (amount > MAX_DAMAGE_CHF) {
+    throw new Error(`amountCHF ${amount} exceeds MAX_DAMAGE_CHF=${MAX_DAMAGE_CHF}. Set env var to raise cap.`);
+  }
+
+  // Idempotency: skip if an identical charge for the same booking landed in last 5 min
+  try {
+    const recent = await select(
+      'damage_charges',
+      `booking_id=eq.${bookingId}&amount_chf=eq.${amount}&order=created_at.desc&limit=1`
+    );
+    if (recent && recent[0]) {
+      const ageMs = Date.now() - new Date(recent[0].created_at).getTime();
+      if (ageMs < IDEMPOTENCY_WINDOW_MS && ['succeeded', 'sent'].includes(recent[0].status)) {
+        return {
+          status: 'duplicate_skipped',
+          method: recent[0].method,
+          paymentIntentId: recent[0].payment_intent_id,
+          invoiceId: recent[0].invoice_id,
+          amountCHF: amount,
+          existingId: recent[0].id,
+        };
+      }
+    }
+  } catch (_) { /* table missing or transient — proceed */ }
 
   const booking = await _getBooking(bookingId);
   if (!booking) throw new Error(`booking ${bookingId} not found`);
