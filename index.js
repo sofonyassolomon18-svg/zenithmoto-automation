@@ -25,6 +25,52 @@ async function main() {
 
   // Webhook server (Lovable → notifications)
   const app = createWebhookServer();
+
+  // Mount new feature routes
+  try {
+    const { mountReferralRoutes } = require('./src/referral');
+    mountReferralRoutes(app);
+    console.log('[boot] referral routes mounted');
+  } catch (e) { console.warn('[boot] referral mount failed:', e.message); }
+
+  try {
+    const damageRouter = require('./src/damage-report');
+    app.use('/api', damageRouter);
+    console.log('[boot] damage-report routes mounted at /api');
+  } catch (e) { console.warn('[boot] damage-report mount failed:', e.message); }
+
+  try {
+    const { mountRoutes: mountContractRoutes } = require('./src/contract-pdf');
+    mountContractRoutes(app);
+    console.log('[boot] contract-pdf routes mounted');
+  } catch (e) { console.warn('[boot] contract-pdf mount failed:', e.message); }
+
+  try {
+    const { mountLoyaltyRoutes } = require('./src/loyalty');
+    mountLoyaltyRoutes(app);
+    console.log('[boot] loyalty routes mounted');
+  } catch (e) { console.warn('[boot] loyalty mount failed:', e.message); }
+
+  try {
+    const { mountNpsRoutes } = require('./src/nps-rental');
+    mountNpsRoutes(app);
+    console.log('[boot] nps routes mounted');
+  } catch (e) { console.warn('[boot] nps-rental mount failed:', e.message); }
+
+  try {
+    const express = require('express');
+    const { handleCallback: licenseCallback } = require('./src/license-verify');
+    app.post('/webhook/license-verify', express.json(), async (req, res) => {
+      try {
+        const { bookingId, status } = req.body;
+        if (!bookingId || !status) return res.status(400).json({ error: 'missing bookingId or status' });
+        const r = await licenseCallback(bookingId, status);
+        res.json(r);
+      } catch (e) { res.status(500).json({ error: e.message }); }
+    });
+    console.log('[boot] license-verify callback mounted at /webhook/license-verify');
+  } catch (e) { console.warn('[boot] license-verify mount failed:', e.message); }
+
   app.listen(PORT, () => {
     console.log(`🌐 Webhook en écoute sur http://localhost:${PORT}/webhook/booking`);
     console.log(`❤️  Health check: http://localhost:${PORT}/health\n`);
