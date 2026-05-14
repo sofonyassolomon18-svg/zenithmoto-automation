@@ -24,6 +24,7 @@
     "mailparser": "^3.9.8",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.7",
+    "pdfkit": "^0.18.0",
     "stripe": "^17.3.1"
   }
 }
