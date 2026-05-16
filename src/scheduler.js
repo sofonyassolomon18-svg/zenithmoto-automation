@@ -20,6 +20,7 @@ const { runLoyaltyDaily } = require('./loyalty');
 const { sendOffseasonPromo } = require('./offseason-promo');
 const { sendSeasonOpening } = require('./season-opening');
 const { runNpsDaily } = require('./nps-rental');
+const { runQueuePoster } = require('./jobs/queue-poster');
 const { notify } = require('./lib/telegram');
 
 function startScheduler() {
@@ -48,6 +49,12 @@ function startScheduler() {
   cron.schedule('0 9 * * *', async () => {
     console.log('\n[CRON] Génération des posts réseaux sociaux...');
     try { await generateAllPosts(); } catch (e) { console.error('CRON content error:', e.message); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Post photo queue FB + IG — tous les jours à 9h30
+  cron.schedule('30 9 * * *', async () => {
+    console.log('\n[CRON] Queue poster FB/IG...');
+    try { await runQueuePoster(); } catch (e) { console.error('CRON queue-poster error:', e.message); }
   }, { timezone: 'Europe/Zurich' });
 
   // Rappels J-1 — tous les jours à 10h00
