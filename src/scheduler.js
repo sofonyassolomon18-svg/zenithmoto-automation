@@ -1,5 +1,11 @@
 const cron = require('node-cron');
 const axios = require('axios');
+const Sentry = require('@sentry/node');
+
+function cronError(name, e) {
+  console.error(`CRON ${name} error:`, e.message);
+  if (process.env.SENTRY_DSN) Sentry.captureException(e, { tags: { cron: name } });
+}
 const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
 const { checkAndSendReminders, checkAndSendPostRentalReview } = require('./notifications');
@@ -48,38 +54,38 @@ function startScheduler() {
   // Génération contenu — tous les jours à 9h00
   cron.schedule('0 9 * * *', async () => {
     console.log('\n[CRON] Génération des posts réseaux sociaux...');
-    try { await generateAllPosts(); } catch (e) { console.error('CRON content error:', e.message); }
+    try { await generateAllPosts(); } catch (e) { cronError('content', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Post photo queue FB + IG — tous les jours à 9h30
   cron.schedule('30 9 * * *', async () => {
     console.log('\n[CRON] Queue poster FB/IG...');
-    try { await runQueuePoster(); } catch (e) { console.error('CRON queue-poster error:', e.message); }
+    try { await runQueuePoster(); } catch (e) { cronError('queue-poster', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Rappels J-1 — tous les jours à 10h00
   cron.schedule('0 10 * * *', async () => {
     console.log('\n[CRON] Vérification rappels J-1...');
-    try { await checkAndSendReminders(); } catch (e) { console.error('CRON reminder error:', e.message); }
+    try { await checkAndSendReminders(); } catch (e) { cronError('reminder', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Follow-up avis Google post-location J+2 — tous les jours à 10h05
   // Cible les locations dont end_date = il y a 2 jours (J+2 après la fin)
   cron.schedule('5 10 * * *', async () => {
     console.log('\n[CRON] Follow-up avis Google post-location J+2...');
-    try { await checkAndSendPostRentalReview(); } catch (e) { console.error('CRON post-rental error:', e.message); }
+    try { await checkAndSendPostRentalReview(); } catch (e) { cronError('post-rental', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Daily KPI Telegram — tous les jours à 8h00 (briefing matinal)
   cron.schedule('0 8 * * *', async () => {
     try { await sendDailyKpiTelegram(); }
-    catch (e) { console.error('CRON daily KPI error:', e.message); }
+    catch (e) { cronError('daily-kpi', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Buffer token health check — tous les jours à 8h05 (silencieux si OK)
   cron.schedule('5 8 * * *', async () => {
     try { await runBufferMonitor(); }
-    catch (e) { console.error('CRON buffer-monitor error:', e.message); }
+    catch (e) { cronError('buffer-monitor', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Rappel J-1 ZenithMoto site (Lovable Supabase) — tous les jours à 17h00
@@ -99,20 +105,20 @@ function startScheduler() {
       });
       console.log(`[CRON reminder-d1] OK : ${res.data.sent}/${res.data.total} envoyés pour ${res.data.date}`);
     } catch (e) {
-      console.error('CRON reminder-d1 error:', e.response?.data || e.message);
+      cronError('reminder-d1', e);
     }
   }, { timezone: 'Europe/Zurich' });
 
   // Prospection partenaires — tous les lundis à 9h30
   cron.schedule('30 9 * * 1', async () => {
     console.log('\n[CRON] Prospection partenaires...');
-    try { await runProspection(); } catch (e) { console.error('CRON prospection error:', e.message); }
+    try { await runProspection(); } catch (e) { cronError('prospection', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Rapport hebdomadaire — tous les lundis à 8h00
   cron.schedule('0 8 * * 1', async () => {
     console.log('\n[CRON] Envoi rapport hebdomadaire...');
-    try { await sendWeeklyReport(); } catch (e) { console.error('CRON report error:', e.message); }
+    try { await sendWeeklyReport(); } catch (e) { cronError('report', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Booking Assistant — toutes les 15 min (remplace Make.com 5491229)
@@ -120,7 +126,7 @@ function startScheduler() {
     try {
       const r = await runBookingAssistant();
       if (r.processed > 0) console.log(`[CRON booking] processed=${r.processed} replied=${r.replied} skipped=${r.skipped} errors=${r.errors}`);
-    } catch (e) { console.error('CRON booking error:', e.message); }
+    } catch (e) { cronError('booking', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Abandon cart recovery — toutes les 30 min, 9h-21h (pas la nuit)
@@ -128,14 +134,14 @@ function startScheduler() {
     try {
       const r = await recoverAbandonedBookings();
       if (r?.sent > 0) console.log(`[CRON retention] abandoned=${r.count} recovered=${r.sent}`);
-    } catch (e) { console.error('CRON retention error:', e.message); }
+    } catch (e) { cronError('retention', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // HeyGen poll-renders — toutes les 2 min (download mp4, deliver email/social)
   cron.schedule('*/2 * * * *', async () => {
     try {
       await pollRenders();
-    } catch (e) { console.error('CRON poll-renders error:', e.message); }
+    } catch (e) { cronError('poll-renders', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // HeyGen avatar social post — mercredi 10h (configurable HEYGEN_SOCIAL_CRON)
@@ -149,7 +155,7 @@ function startScheduler() {
     try {
       const r = await generateSocialAvatarPost();
       console.log(`[CRON heygen-social] ${r.ok ? '✅' : '❌'} ${r.ok ? `video_id=${r.video_id} tpl=${r.template_id}` : r.error}`);
-    } catch (e) { console.error('CRON heygen-social error:', e.message); }
+    } catch (e) { cronError('heygen-social', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Auto-reminder H-24/48 — toutes les heures, dédupliqué via reminder_h24_sent
@@ -157,38 +163,38 @@ function startScheduler() {
     try {
       const r = await runAutoReminder();
       if (r.sent > 0) console.log(`[CRON auto-reminder] sent=${r.sent} errors=${r.errors}`);
-    } catch (e) { console.error('CRON auto-reminder error:', e.message); }
+    } catch (e) { cronError('auto-reminder', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Fleet availability digest — tous les jours à 8h10
   cron.schedule('10 8 * * *', async () => {
     try { await runFleetAvailability(); }
-    catch (e) { console.error('CRON fleet-avail error:', e.message); }
+    catch (e) { cronError('fleet-avail', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Price/yield monitor — lundis à 9h00
   cron.schedule('0 9 * * 1', async () => {
     try { await runPriceYieldMonitor(); }
-    catch (e) { console.error('CRON price-yield error:', e.message); }
+    catch (e) { cronError('price-yield', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Content scheduler Postiz — dimanche 18h (planifie semaine suivante)
   cron.schedule('0 18 * * 0', async () => {
     try { await runContentSchedulerPostiz(); }
-    catch (e) { console.error('CRON content-scheduler-postiz error:', e.message); }
+    catch (e) { cronError('content-scheduler-postiz', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Weekly KPI report Telegram — dimanche 20h00 (debrief de fin de semaine)
   cron.schedule('0 20 * * 0', async () => {
     console.log('\n[CRON] Rapport KPI hebdomadaire Telegram...');
-    try { await sendWeeklyKpiTelegram(); } catch (e) { console.error('CRON weekly-kpi error:', e.message); }
+    try { await sendWeeklyKpiTelegram(); } catch (e) { cronError('weekly-kpi', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Daily morning brief — tous les jours à 08:00 (pickups, returns, MTD revenue)
   cron.schedule('0 8 * * *', async () => {
     try { await runMorningBrief(); }
     catch (e) {
-      console.error('CRON morning-brief error:', e.message);
+      cronError('morning-brief', e);
       notify(`morning-brief crashed: ${e.message}`, 'error', { project: 'zenithmoto' }).catch(() => {});
     }
   }, { timezone: 'Europe/Zurich' });
@@ -197,7 +203,7 @@ function startScheduler() {
   cron.schedule('0 2 * * *', async () => {
     try { await runBackupDb(); }
     catch (e) {
-      console.error('CRON backup-db error:', e.message);
+      cronError('backup-db', e);
       notify(`backup-db crashed: ${e.message}`, 'error', { project: 'zenithmoto' }).catch(() => {});
     }
   }, { timezone: 'Europe/Zurich' });
@@ -206,7 +212,7 @@ function startScheduler() {
   cron.schedule('*/5 * * * *', async () => {
     try { await runUptimeMonitor(); }
     catch (e) {
-      console.error('CRON uptime-monitor error:', e.message);
+      cronError('uptime-monitor', e);
     }
   }, { timezone: 'Europe/Zurich' });
 
@@ -235,7 +241,7 @@ function startScheduler() {
     try {
       const r = await runLoyaltyDaily();
       if (r.awarded > 0) console.log(`[CRON loyalty] awarded=${r.awarded}`);
-    } catch (e) { console.error('CRON loyalty error:', e.message); }
+    } catch (e) { cronError('loyalty', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // NPS daily — tous les jours à 10h30 (J+3 post-return, après Google review J+2 à 10h05)
@@ -243,7 +249,7 @@ function startScheduler() {
     try {
       const r = await runNpsDaily();
       if (r?.sent > 0) console.log(`[CRON nps] sent=${r.sent} date=${r.date}`);
-    } catch (e) { console.error('CRON nps error:', e.message); }
+    } catch (e) { cronError('nps', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Offseason promo cours hiver — 15 oct + 15 nov à 9h
@@ -251,7 +257,7 @@ function startScheduler() {
     try {
       const r = await sendOffseasonPromo();
       console.log(`[CRON offseason] sent=${r.sent || 0}`);
-    } catch (e) { console.error('CRON offseason error:', e.message); }
+    } catch (e) { cronError('offseason', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Season opening campaign — 1 mars + 15 mars + 1 avril à 9h
@@ -259,13 +265,13 @@ function startScheduler() {
     try {
       const r = await sendSeasonOpening();
       console.log(`[CRON season] sent=${r.sent || 0} code=${r.code}`);
-    } catch (e) { console.error('CRON season error:', e.message); }
+    } catch (e) { cronError('season', e); }
   }, { timezone: 'Europe/Zurich' });
   cron.schedule('0 9 1 4 *', async () => {
     try {
       const r = await sendSeasonOpening();
       console.log(`[CRON season-apr] sent=${r.sent || 0}`);
-    } catch (e) { console.error('CRON season-apr error:', e.message); }
+    } catch (e) { cronError('season-apr', e); }
   }, { timezone: 'Europe/Zurich' });
 
   console.log('   🏆  Loyalty daily            → tous les jours à 11:00');

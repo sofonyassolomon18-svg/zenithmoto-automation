@@ -1,5 +1,14 @@
 require('dotenv').config();
 
+const Sentry = require('@sentry/node');
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'production',
+    tracesSampleRate: 0.1,
+  });
+}
+
 const { createWebhookServer } = require('./src/notifications');
 const { startScheduler } = require('./src/scheduler');
 
@@ -84,12 +93,13 @@ async function main() {
 
 main().catch(e => {
   console.error('\n❌ Erreur fatale:', e.message);
+  if (process.env.SENTRY_DSN) Sentry.captureException(e);
   process.exit(1);
 });
 
-// Prevent unhandled errors from crashing the server
 process.on('uncaughtException', (e) => {
   console.error('[uncaughtException]', e.message);
+  if (process.env.SENTRY_DSN) Sentry.captureException(e);
 });
 process.on('unhandledRejection', (e) => {
   console.error('[unhandledRejection]', e?.message || e);
