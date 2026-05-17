@@ -82,6 +82,8 @@ function startScheduler() {
     catch (e) { cronError('daily-kpi', e); }
   }, { timezone: 'Europe/Zurich' });
 
+  // NOTE: morning-brief staggeré à 8h02 pour éviter collision avec daily-kpi (8h00).
+
   // Buffer token health check — tous les jours à 8h05 (silencieux si OK)
   cron.schedule('5 8 * * *', async () => {
     try { await runBufferMonitor(); }
@@ -190,8 +192,9 @@ function startScheduler() {
     try { await sendWeeklyKpiTelegram(); } catch (e) { cronError('weekly-kpi', e); }
   }, { timezone: 'Europe/Zurich' });
 
-  // Daily morning brief — tous les jours à 08:00 (pickups, returns, MTD revenue)
-  cron.schedule('0 8 * * *', async () => {
+  // Daily morning brief — tous les jours à 08:02 (pickups, returns, MTD revenue)
+  // Staggeré 2 min après daily-kpi (8h00) pour éviter saturation event loop.
+  cron.schedule('2 8 * * *', async () => {
     try { await runMorningBrief(); }
     catch (e) {
       cronError('morning-brief', e);
