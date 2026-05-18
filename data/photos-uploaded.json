@@ -229,6 +229,66 @@
       "supabase_url": "https://edcvmgpcllhszxvthdzx.supabase.co/storage/v1/object/public/zenithmoto-content/flotte/yamaha-x-max-300/xmax-300-2025-darkmagma-rear.jpg",
       "source_url": "https://cdn-fastly.motorcycle.com/media/2025/01/17/14446/s-post.jpg",
       "uploaded_at": "2026-05-11T21:51:31.862Z"
+    },
+    {
+      "slug": "yamaha-tmax-530",
+      "angle": "front-3-4-hero",
+      "color": "Sword Silver",
+      "year": 2015,
+      "local_filename": "tmax-530-front-34-hero.jpg",
+      "supabase_url": "https://edcvmgpcllhszxvthdzx.supabase.co/storage/v1/object/public/zenithmoto-content/flotte/yamaha-tmax-530/tmax-530-front-34-hero.jpg",
+      "source_url": "https://www.totalmotorcycle.com/motorcycles/2015/2015-Yamaha-TMAX1.jpg",
+      "uploaded_at": "2026-05-18T06:35:26.331Z"
+    },
+    {
+      "slug": "yamaha-tmax-530",
+      "angle": "side-profile",
+      "color": "Sword Silver",
+      "year": 2015,
+      "local_filename": "tmax-530-side-profile.jpg",
+      "supabase_url": "https://edcvmgpcllhszxvthdzx.supabase.co/storage/v1/object/public/zenithmoto-content/flotte/yamaha-tmax-530/tmax-530-side-profile.jpg",
+      "source_url": "https://www.totalmotorcycle.com/motorcycles/2015/2015-Yamaha-TMAX2.jpg",
+      "uploaded_at": "2026-05-18T06:35:26.607Z"
+    },
+    {
+      "slug": "yamaha-tmax-530",
+      "angle": "rear-3-4",
+      "color": "Sword Silver",
+      "year": 2015,
+      "local_filename": "tmax-530-rear-34.jpg",
+      "supabase_url": "https://edcvmgpcllhszxvthdzx.supabase.co/storage/v1/object/public/zenithmoto-content/flotte/yamaha-tmax-530/tmax-530-rear-34.jpg",
+      "source_url": "https://www.totalmotorcycle.com/motorcycles/2015/2015-Yamaha-TMAX3.jpg",
+      "uploaded_at": "2026-05-18T06:35:26.846Z"
+    },
+    {
+      "slug": "yamaha-x-max-125",
+      "angle": "front-3-4-hero",
+      "color": "Icon Black",
+      "year": 2025,
+      "local_filename": "xmax-125-2025-black-hero.jpg",
+      "supabase_url": "https://edcvmgpcllhszxvthdzx.supabase.co/storage/v1/object/public/zenithmoto-content/flotte/yamaha-x-max-125/xmax-125-2025-black-hero.jpg",
+      "source_url": "https://www.totalmotorcycle.com/wp-content/uploads/2024/12/2025-Yamaha-XMAX1-1200x799.jpg",
+      "uploaded_at": "2026-05-18T06:35:33.191Z"
+    },
+    {
+      "slug": "yamaha-x-max-125",
+      "angle": "side-profile",
+      "color": "Icon Black",
+      "year": 2025,
+      "local_filename": "xmax-125-2025-black-side.jpg",
+      "supabase_url": "https://edcvmgpcllhszxvthdzx.supabase.co/storage/v1/object/public/zenithmoto-content/flotte/yamaha-x-max-125/xmax-125-2025-black-side.jpg",
+      "source_url": "https://www.totalmotorcycle.com/wp-content/uploads/2024/12/2025-Yamaha-XMAX2-1200x799.jpg",
+      "uploaded_at": "2026-05-18T06:35:34.420Z"
+    },
+    {
+      "slug": "yamaha-x-max-125",
+      "angle": "front-detail",
+      "color": "Icon Black",
+      "year": 2025,
+      "local_filename": "xmax-125-2025-black-front.jpg",
+      "supabase_url": "https://edcvmgpcllhszxvthdzx.supabase.co/storage/v1/object/public/zenithmoto-content/flotte/yamaha-x-max-125/xmax-125-2025-black-front.jpg",
+      "source_url": "https://www.totalmotorcycle.com/wp-content/uploads/2024/12/2025-Yamaha-XMAX3-1200x799.jpg",
+      "uploaded_at": "2026-05-18T06:35:35.532Z"
     }
   ]
 }

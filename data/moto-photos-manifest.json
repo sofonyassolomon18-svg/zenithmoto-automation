@@ -38,12 +38,13 @@
       ]
     },
     "yamaha-tmax-530": {
-      "year": "2025",
+      "year": "2015-2019",
       "slug": "yamaha-tmax-530",
       "supabase_folder": "flotte/yamaha-tmax-530/",
       "photos": [
-        { "url": "https://www.yamaha-motor.eu/cy/en/scooters/sport/pdp/tmax-2025/", "angle": "PDP-gallery-page", "color": "multiple", "year": 2025, "filename": "tmax-2025-pdp-gallery.html", "_note": "Page HTML — extract images via Right-click + Inspect" },
-        { "url": "https://www.yamaha-motor.eu/kv/en/scooters/sport/pdp/tmax-25th-anniversary/", "angle": "25th-anniversary", "color": "Anniversary Blue", "year": 2026, "filename": "tmax-25th-anniversary.html", "_note": "Anniversary edition page" }
+        { "url": "https://www.totalmotorcycle.com/motorcycles/2015/2015-Yamaha-TMAX1.jpg", "angle": "front-3-4-hero", "color": "Sword Silver", "year": 2015, "filename": "tmax-530-front-34-hero.jpg" },
+        { "url": "https://www.totalmotorcycle.com/motorcycles/2015/2015-Yamaha-TMAX2.jpg", "angle": "side-profile", "color": "Sword Silver", "year": 2015, "filename": "tmax-530-side-profile.jpg" },
+        { "url": "https://www.totalmotorcycle.com/motorcycles/2015/2015-Yamaha-TMAX3.jpg", "angle": "rear-3-4", "color": "Sword Silver", "year": 2015, "filename": "tmax-530-rear-34.jpg" }
       ]
     },
     "yamaha-x-max-300": {
@@ -64,7 +65,9 @@
       "slug": "yamaha-x-max-125",
       "supabase_folder": "flotte/yamaha-x-max-125/",
       "photos": [
-        { "url": "https://www.yamaha-motor.eu/gb/en/scooters/sport/pdp/xmax-125-2025/", "angle": "PDP-gallery", "color": "all variants", "year": 2025, "filename": "xmax-125-2025-pdp.html", "_note": "Page HTML — Yamaha Europe PDP" }
+        { "url": "https://www.totalmotorcycle.com/wp-content/uploads/2024/12/2025-Yamaha-XMAX1-1200x799.jpg", "angle": "front-3-4-hero", "color": "Icon Black", "year": 2025, "filename": "xmax-125-2025-black-hero.jpg" },
+        { "url": "https://www.totalmotorcycle.com/wp-content/uploads/2024/12/2025-Yamaha-XMAX2-1200x799.jpg", "angle": "side-profile", "color": "Icon Black", "year": 2025, "filename": "xmax-125-2025-black-side.jpg" },
+        { "url": "https://www.totalmotorcycle.com/wp-content/uploads/2024/12/2025-Yamaha-XMAX3-1200x799.jpg", "angle": "front-detail", "color": "Icon Black", "year": 2025, "filename": "xmax-125-2025-black-front.jpg" }
       ]
     }
   }
