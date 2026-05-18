@@ -5,6 +5,7 @@ const Sentry = require('@sentry/node');
 function cronError(name, e) {
   console.error(`CRON ${name} error:`, e.message);
   if (process.env.SENTRY_DSN) Sentry.captureException(e, { tags: { cron: name } });
+  notify(`🚨 ZM Cron [${name}] crashed: ${e.message}`, 'error', { project: 'zenithmoto' }).catch(() => {});
 }
 const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
@@ -28,6 +29,7 @@ const { sendSeasonOpening } = require('./season-opening');
 const { runNpsDaily } = require('./nps-rental');
 const { runQueuePoster } = require('./jobs/queue-poster');
 const { notify } = require('./lib/telegram');
+const { checkAndSendJ7Reminders } = require('./notifications');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
@@ -61,6 +63,12 @@ function startScheduler() {
   cron.schedule('30 9 * * *', async () => {
     console.log('\n[CRON] Queue poster FB/IG...');
     try { await runQueuePoster(); } catch (e) { cronError('queue-poster', e); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Rappels J-7 — tous les jours à 09h45 (avant J-1 pour lisibilité Telegram)
+  cron.schedule('45 9 * * *', async () => {
+    console.log('\n[CRON] Vérification rappels J-7...');
+    try { await checkAndSendJ7Reminders(); } catch (e) { cronError('reminder-j7', e); }
   }, { timezone: 'Europe/Zurich' });
 
   // Rappels J-1 — tous les jours à 10h00
@@ -221,6 +229,7 @@ function startScheduler() {
 
   console.log('📅 Tâches programmées :');
   console.log('   🏍️  Posts réseaux sociaux  → tous les jours à 09:00');
+  console.log('   📅  Rappels J-7             → tous les jours à 09:45');
   console.log('   ⏰  Rappels J-1             → tous les jours à 10:00');
   console.log('   🤝  Prospection partenaires → lundis à 09:30');
   console.log('   📊  Rapport hebdomadaire    → lundis à 08:00');
