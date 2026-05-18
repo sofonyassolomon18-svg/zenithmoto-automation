@@ -2,14 +2,28 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-const QUEUE_PATH = path.join(__dirname, '../../data/post-queue.json');
+// State stored in Railway persistent volume (/app/var/) so deploys don't reset it
+const VAR_DIR = process.env.RAILWAY_ENVIRONMENT
+  ? '/app/var'
+  : path.join(__dirname, '../../var');
+fs.mkdirSync(VAR_DIR, { recursive: true });
+
+const QUEUE_STATE_PATH = path.join(VAR_DIR, 'post-queue-state.json');
+const QUEUE_TEMPLATE_PATH = path.join(__dirname, '../../data/post-queue.json');
 
 function loadQueue() {
-  return JSON.parse(fs.readFileSync(QUEUE_PATH, 'utf8'));
+  // State file exists → use it (persists across deploys)
+  if (fs.existsSync(QUEUE_STATE_PATH)) {
+    return JSON.parse(fs.readFileSync(QUEUE_STATE_PATH, 'utf8'));
+  }
+  // First run: copy template to persistent location
+  const template = JSON.parse(fs.readFileSync(QUEUE_TEMPLATE_PATH, 'utf8'));
+  fs.writeFileSync(QUEUE_STATE_PATH, JSON.stringify(template, null, 2));
+  return template;
 }
 
 function saveQueue(queue) {
-  fs.writeFileSync(QUEUE_PATH, JSON.stringify(queue, null, 2));
+  fs.writeFileSync(QUEUE_STATE_PATH, JSON.stringify(queue, null, 2));
 }
 
 function logPost(moto, platform, status, postId = '') {
