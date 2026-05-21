@@ -286,7 +286,7 @@ function emailCalendlyLink(booking, calendlyUrl, lang = 'fr') {
 // Persist generated link in bookings table (best-effort, swallow errors)
 async function patchBookingCalendlyUrl(bookingId, calendlyUrl) {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_KEY;
+  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
   if (!url || !key || !bookingId) return;
   try {
     await fetch(`${url}/rest/v1/bookings?id=eq.${bookingId}`, {
@@ -341,7 +341,7 @@ async function sendNotification(emailData) {
 // Fetch tomorrow's bookings from Supabase REST API (no SDK needed, Node 18+ fetch)
 async function fetchTomorrowsBookingsFromSupabase(tomorrowStr) {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_KEY;
+  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
   if (!url || !key) return null;
   try {
     const res = await fetch(
@@ -359,7 +359,7 @@ async function fetchTomorrowsBookingsFromSupabase(tomorrowStr) {
 // Fetch yesterday's confirmed bookings without review request from Supabase
 async function fetchYesterdaysBookingsFromSupabase(yesterdayStr) {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_KEY;
+  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
   if (!url || !key) return null;
   try {
     const res = await fetch(
@@ -378,7 +378,7 @@ async function fetchYesterdaysBookingsFromSupabase(yesterdayStr) {
 // Mark booking as review request sent
 async function markReviewRequestSent(bookingId) {
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_KEY;
+  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
   try {
     await fetch(
       `${url}/rest/v1/bookings?id=eq.${bookingId}`,
@@ -510,6 +510,86 @@ async function checkAndSendReminders() {
     }
   }
   saveBookings(bookings);
+}
+
+// J-7 reminder: send 1 week ahead reminder via Telegram to operator + email to client
+// Deduplicated via Supabase column reminder_j7_sent (boolean).
+async function checkAndSendJ7Reminders() {
+  const supaUrl = process.env.SUPABASE_URL;
+  const supaKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+  if (!supaUrl || !supaKey) {
+    console.warn('[j7-reminder] Supabase non configuré — skip');
+    return;
+  }
+
+  const in7 = new Date();
+  in7.setDate(in7.getDate() + 7);
+  const targetStr = in7.toISOString().split('T')[0];
+
+  let bookings;
+  try {
+    const res = await fetch(
+      `${supaUrl}/rest/v1/bookings?select=*&start_date=eq.${targetStr}&status=neq.cancelled&reminder_j7_sent=is.null`,
+      { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }
+    );
+    if (!res.ok) {
+      console.warn('[j7-reminder] Supabase fetch', res.status);
+      return;
+    }
+    bookings = await res.json();
+  } catch (e) {
+    console.warn('[j7-reminder] fetch failed:', e.message);
+    return;
+  }
+
+  if (!bookings || bookings.length === 0) return;
+
+  const { notify: tgNotify } = require('./lib/telegram');
+  const transport = getTransport();
+
+  for (const booking of bookings) {
+    try {
+      const moto = booking.moto || booking.motorcycle || booking.moto_id || '?';
+      // Telegram operator alert
+      await tgNotify(
+        `📅 *Rappel J-7 opérateur*\nClient : ${booking.client_name || '?'}\nMoto : ${moto}\nDébut : ${booking.start_date}\nEmail : ${booking.client_email}`,
+        'info', { project: 'zenithmoto' }
+      );
+
+      // Client email — reuse emailReminder template with adapted subject
+      if (booking.client_email) {
+        const lang = (booking.lang || 'fr').toLowerCase().startsWith('de') ? 'de' : 'fr';
+        const reminderEmail = emailReminder({
+          client_name: booking.client_name,
+          client_email: booking.client_email,
+          motorcycle: moto,
+          start_date: booking.start_date,
+          end_date: booking.end_date,
+          booking_id: booking.id,
+        }, lang);
+        // Override subject for J-7 (more advance notice)
+        reminderEmail.subject = lang === 'de'
+          ? `📅 In 7 Tagen: Ihre Miete ${moto} — ZenithMoto`
+          : `📅 Dans 7 jours : votre location ${moto} — ZenithMoto`;
+
+        await transport.sendMail({
+          from: `"ZenithMoto" <${process.env.SMTP_EMAIL}>`,
+          ...reminderEmail,
+        });
+        console.log(`📅 Rappel J-7 envoyé → ${booking.client_name}`);
+      }
+
+      // Mark sent
+      await fetch(`${supaUrl}/rest/v1/bookings?id=eq.${booking.id}`, {
+        method: 'PATCH',
+        headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}`,
+                   'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify({ reminder_j7_sent: true }),
+      });
+    } catch (e) {
+      console.error(`[j7-reminder] Error booking ${booking.id}:`, e.message);
+    }
+  }
 }
 
 function createWebhookServer() {
@@ -646,6 +726,18 @@ function createWebhookServer() {
           meta: { email: booking.client_email, start_date: booking.start_date },
         });
 
+        // Telegram operator alert: new booking
+        const { notify } = require('./lib/telegram');
+        notify(
+          `🏍️ *Nouvelle réservation*\n` +
+          `Client : ${booking.client_name || '?'}\n` +
+          `Moto : ${booking.moto_id || booking.motorcycle || '?'}\n` +
+          `Du : ${booking.start_date} au ${booking.end_date}\n` +
+          `Prix : ${booking.price ? 'CHF ' + booking.price : '—'}\n` +
+          `Email : ${booking.client_email}`,
+          'success', { project: 'zenithmoto' }
+        ).catch(() => {});
+
         // VIP detection (3e+ location) : notif Telegram async, ne bloque pas la réponse webhook
         try {
           const { notifyVipOnNewBooking } = require('./retention');
@@ -688,15 +780,27 @@ function createWebhookServer() {
       }
 
       if (event === 'booking_completed') {
+        // 'paid' is the closest kind in KIND_EMOJI for completed rentals (no 'completed' key exists)
+        // We use meta.completed=true to differentiate in analytics.
         trackEvent({
-          kind: 'completed',
+          kind: 'paid',
           booking_id: booking.booking_id || booking.id,
           customer: customerName,
           moto: booking.moto_id || booking.motorcycle,
-          meta: { email: booking.client_email },
+          meta: { email: booking.client_email, completed: true },
         });
         await sendNotification(emailFollowUp(booking));
         console.log(`⭐ Follow-up avis envoyé → ${maskEmail(booking.client_email)}`);
+
+        // Telegram operator alert: rental completed
+        const { notify: notifyCompleted } = require('./lib/telegram');
+        notifyCompleted(
+          `🏁 *Location terminée*\n` +
+          `Client : ${booking.client_name || '?'}\n` +
+          `Moto : ${booking.moto_id || booking.motorcycle || '?'}\n` +
+          `Email : ${booking.client_email}`,
+          'info', { project: 'zenithmoto' }
+        ).catch(() => {});
 
         const bookings = loadBookings();
         const b = bookings.find(b => b.booking_id === booking.booking_id);
@@ -719,6 +823,17 @@ function createWebhookServer() {
           moto: booking.moto_id || booking.motorcycle,
           meta: { email: booking.client_email },
         });
+
+        // Telegram operator alert: cancellation
+        const { notify: notifyCancel } = require('./lib/telegram');
+        notifyCancel(
+          `⚠️ *Réservation annulée*\n` +
+          `Client : ${booking.client_name || '?'}\n` +
+          `Moto : ${booking.moto_id || booking.motorcycle || '?'}\n` +
+          `Du : ${booking.start_date} au ${booking.end_date}\n` +
+          `Email : ${booking.client_email}`,
+          'warn', { project: 'zenithmoto' }
+        ).catch(() => {});
       }
 
       res.json({ success: true, event });
@@ -887,4 +1002,4 @@ function createWebhookServer() {
   return app;
 }
 
-module.exports = { createWebhookServer, checkAndSendReminders, checkAndSendPostRentalReview, maskEmail };
+module.exports = { createWebhookServer, checkAndSendReminders, checkAndSendJ7Reminders, checkAndSendPostRentalReview, maskEmail };

@@ -167,17 +167,20 @@ async function publishInstagramReel(caption, videoUrl, moto = 'avatar-post') {
     );
     const creationId = container.data.id;
     // Step 2: poll status until FINISHED (Meta needs 30-90s to ingest video)
+    // Max 20 attempts × 5s = 100s hard cap
     let attempts = 0;
+    let ingested = false;
     while (attempts < 20) {
       await new Promise(r => setTimeout(r, 5000));
       const st = await axios.get(
         `https://graph.facebook.com/v19.0/${creationId}?fields=status_code&access_token=${token}`,
         { timeout: 10000 }
       );
-      if (st.data.status_code === 'FINISHED') break;
+      if (st.data.status_code === 'FINISHED') { ingested = true; break; }
       if (st.data.status_code === 'ERROR') throw new Error('Meta ingest ERROR');
       attempts++;
     }
+    if (!ingested) throw new Error(`Meta ingest timeout after ${attempts * 5}s`);
     // Step 3: publish
     const publish = await axios.post(
       `https://graph.facebook.com/v19.0/${userId}/media_publish`,

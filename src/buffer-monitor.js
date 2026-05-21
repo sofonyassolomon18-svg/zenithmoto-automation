@@ -1,26 +1,11 @@
 // Buffer access token health check (GraphQL).
 // REST v1 (bufferapp.com/1/user.json) rejette les tokens OIDC depuis 2024-2025.
 // Migration vers api.buffer.com/graphql qui accepte le Bearer OIDC.
+// TODO: If Buffer token is expired → get a new OIDC token at https://buffer.com/developers/apps
+//       and set BUFFER_ACCESS_TOKEN on Railway + redeploy.
 
-const axios = require('axios');
 const buffer = require('./publishers/buffer');
-
-const TG_BOT  = process.env.TELEGRAM_BOT_TOKEN;
-const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
-
-async function notifyTelegram(text) {
-  if (!TG_BOT || !TG_CHAT) {
-    console.warn('[buffer-monitor] TELEGRAM non configuré — alerte non envoyée');
-    return;
-  }
-  try {
-    await axios.post(`https://api.telegram.org/bot${TG_BOT}/sendMessage`,
-      { chat_id: TG_CHAT, text, parse_mode: 'Markdown' },
-      { timeout: 5000 });
-  } catch (e) {
-    console.error('[buffer-monitor] Telegram failed:', e.message);
-  }
-}
+const { notify } = require('./lib/telegram');
 
 async function runBufferMonitor() {
   const token = process.env.BUFFER_ACCESS_TOKEN;
@@ -46,7 +31,7 @@ async function runBufferMonitor() {
                     `Action : régénérer un access token sur https://buffer.com/developers/apps\n` +
                     `Puis mettre à jour \`BUFFER_ACCESS_TOKEN\` sur Railway et redeploy.`;
       console.error('[buffer-monitor] TOKEN INVALIDE:', msg);
-      await notifyTelegram(alert);
+      await notify(alert, 'error', { project: 'zenithmoto' }).catch(() => {});
       return { status: 'expired', error: msg };
     }
     console.warn('[buffer-monitor] erreur transitoire:', msg);

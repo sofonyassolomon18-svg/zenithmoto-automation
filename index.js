@@ -16,7 +16,12 @@ const PORT = process.env.PORT || process.env.WEBHOOK_PORT || 3001;
 
 function checkEnv() {
   const required = ['GMAIL_APP_PASSWORD', 'SMTP_EMAIL'];
-  const optional = ['GEMINI_API_KEY', 'GOOGLE_MAPS_API_KEY'];
+  const optional = [
+    'GEMINI_API_KEY', 'GOOGLE_MAPS_API_KEY',
+    'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
+    'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
+    'WEBHOOK_SECRET', 'STRIPE_SECRET_KEY',
+  ];
   const missing = required.filter(k => !process.env[k]);
   if (missing.length) {
     console.error('❌ Variables manquantes dans .env:', missing.join(', '));
@@ -25,6 +30,13 @@ function checkEnv() {
   const missingOpt = optional.filter(k => !process.env[k]);
   if (missingOpt.length) {
     console.warn('⚠️  Optionnelles manquantes (certains crons désactivés):', missingOpt.join(', '));
+  }
+  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
+    console.warn('⚠️  TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID absents — toutes les alertes Telegram seront silencieuses');
+  }
+  if (!process.env.WEBHOOK_SECRET && process.env.NODE_ENV === 'production') {
+    console.error('❌ WEBHOOK_SECRET requis en production (sécurité webhook HMAC)');
+    process.exit(1);
   }
 }
 
@@ -80,9 +92,20 @@ async function main() {
     console.log('[boot] license-verify callback mounted at /webhook/license-verify');
   } catch (e) { console.warn('[boot] license-verify mount failed:', e.message); }
 
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`🌐 Webhook en écoute sur http://localhost:${PORT}/webhook/booking`);
     console.log(`❤️  Health check: http://localhost:${PORT}/health\n`);
+
+    // Startup Telegram notification
+    try {
+      const { notify } = require('./src/lib/telegram');
+      const domain = process.env.RAILWAY_PUBLIC_DOMAIN || `localhost:${PORT}`;
+      await notify(
+        `🚀 *ZenithMoto Automation démarré*\nEnv: ${process.env.NODE_ENV || 'development'}\nURL: https://${domain}`,
+        'success',
+        { project: 'zenithmoto' }
+      );
+    } catch (_) {}
   });
 
   // Cron jobs

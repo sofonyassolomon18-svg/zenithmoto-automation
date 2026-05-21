@@ -67,7 +67,7 @@ async function runMorningBrief() {
   const header = `☀️ *ZenithMoto* · ${esc(frDate(today))}`;
 
   if (totalEvents === 0 && countMTD === 0) {
-    await notify(`${header}\nAucune activité prévue\\.`, 'info', { project: 'zenithmoto' });
+    await notify(`${header}\nAucune activité prévue\\.`, 'info', { project: 'zenithmoto', parse_mode: 'MarkdownV2' });
     return { ok: true, pickups: 0, returns: 0, revenue: 0 };
   }
 
@@ -89,7 +89,7 @@ async function runMorningBrief() {
 
   lines.push(`💰 Revenue MTD: CHF ${esc(revenueMTD.toFixed(0))} \\(${countMTD} bookings\\)`);
 
-  await notify(lines.join('\n'), 'info', { project: 'zenithmoto' });
+  await notify(lines.join('\n'), 'info', { project: 'zenithmoto', parse_mode: 'MarkdownV2' });
   return { ok: true, pickups: pickups.length, returns: returns.length, revenue: revenueMTD };
 }
 

@@ -50,6 +50,11 @@ async function generateAllPosts() {
   const date = new Date().toISOString().split('T')[0];
   const postsDir = path.join(__dirname, '..', 'posts');
 
+  // Ensure posts directory exists (Railway ephemeral FS)
+  if (!fs.existsSync(postsDir)) {
+    fs.mkdirSync(postsDir, { recursive: true });
+  }
+
   for (const moto of FLEET) {
     console.log(`  📱 ${moto.name}...`);
     const result = { moto: moto.name, date, posts: {} };

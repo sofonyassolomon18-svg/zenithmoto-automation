@@ -21,7 +21,12 @@ const supabase = SUPABASE_URL && SUPABASE_KEY
 async function notify(text, level = 'info', opts = {}) {
   const icon = ICONS[level] || ICONS.info;
   const project = opts.project || process.env.NOTIFY_PROJECT || 'app';
-  const message = `${icon} *${project}* — ${text}`;
+  // If text already starts with a project-prefixed emoji, don't double-prefix
+  const message = text.startsWith(icon) || text.startsWith('🚀') || text.startsWith('☀️') || text.startsWith('📊')
+    ? text
+    : `${icon} *${project}* — ${text}`;
+  // parse_mode: opts.parse_mode overrides default. morning-brief uses MarkdownV2, others use Markdown.
+  const parseMode = opts.parse_mode || 'Markdown';
   const calls = [];
 
   if (process.env.SLACK_WEBHOOK_URL) {
@@ -40,7 +45,7 @@ async function notify(text, level = 'info', opts = {}) {
     calls.push(
       axios.post(
         `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-        { chat_id: process.env.TELEGRAM_CHAT_ID, text: message, parse_mode: 'Markdown' },
+        { chat_id: process.env.TELEGRAM_CHAT_ID, text: message, parse_mode: parseMode },
         { timeout: 5000 }
       ).catch(e => console.warn('[telegram-lib:telegram]', e.message))
     );

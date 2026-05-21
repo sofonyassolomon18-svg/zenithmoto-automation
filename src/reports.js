@@ -136,7 +136,23 @@ async function sendDailyKpiTelegram() {
   if (!TG_BOT || !TG_CHAT) return; // pas configuré → skip silencieux
 
   try {
-    const bookings = loadBookings();
+    // Prefer Supabase bookings (last 48h to include timezone drift)
+    let bookings = loadBookings();
+    const supaUrl = process.env.SUPABASE_URL;
+    const supaKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+    if (supaUrl && supaKey) {
+      try {
+        const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString().slice(0, 10);
+        const r = await fetch(
+          `${supaUrl}/rest/v1/bookings?select=*&start_date=gte.${since}&status=neq.cancelled&order=created_at.desc`,
+          { headers: { apikey: supaKey, Authorization: `Bearer ${supaKey}` } }
+        );
+        if (r.ok) {
+          const data = await r.json();
+          if (Array.isArray(data) && data.length > 0) bookings = data;
+        }
+      } catch (_) { /* fall through to local */ }
+    }
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const today = now.toISOString().slice(0, 10);

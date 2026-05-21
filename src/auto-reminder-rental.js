@@ -99,8 +99,8 @@ async function markReminderSent(id) {
 
 async function runAutoReminder() {
   const rentals = await fetchUpcomingRentals();
-  if (!rentals) return { status: 'skipped', count: 0 };
-  if (rentals.length === 0) return { status: 'ok', count: 0 };
+  if (!rentals) return { status: 'skipped', count: 0, sent: 0, errors: 0 };
+  if (rentals.length === 0) return { status: 'ok', count: 0, sent: 0, errors: 0 };
 
   let sent = 0, errors = 0;
   for (const b of rentals) {

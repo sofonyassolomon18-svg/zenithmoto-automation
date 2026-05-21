@@ -14,9 +14,16 @@ const QUEUE_TEMPLATE_PATH = path.join(__dirname, '../../data/post-queue.json');
 function loadQueue() {
   // State file exists → use it (persists across deploys)
   if (fs.existsSync(QUEUE_STATE_PATH)) {
-    return JSON.parse(fs.readFileSync(QUEUE_STATE_PATH, 'utf8'));
+    try { return JSON.parse(fs.readFileSync(QUEUE_STATE_PATH, 'utf8')); }
+    catch { /* corrupted — fall through to template */ }
   }
   // First run: copy template to persistent location
+  if (!fs.existsSync(QUEUE_TEMPLATE_PATH)) {
+    // Template missing → return empty queue rather than crash
+    const empty = { posts: [] };
+    fs.writeFileSync(QUEUE_STATE_PATH, JSON.stringify(empty, null, 2));
+    return empty;
+  }
   const template = JSON.parse(fs.readFileSync(QUEUE_TEMPLATE_PATH, 'utf8'));
   fs.writeFileSync(QUEUE_STATE_PATH, JSON.stringify(template, null, 2));
   return template;
@@ -83,9 +90,27 @@ async function postPhotoInstagram(imageUrl, caption, moto) {
   }
 }
 
+async function notifyTelegram(text) {
+  const TG_BOT  = process.env.TELEGRAM_BOT_TOKEN;
+  const TG_CHAT = process.env.TELEGRAM_CHAT_ID;
+  if (!TG_BOT || !TG_CHAT) return;
+  try {
+    await axios.post(`https://api.telegram.org/bot${TG_BOT}/sendMessage`,
+      { chat_id: TG_CHAT, text, parse_mode: 'Markdown' }, { timeout: 8000 });
+  } catch (e) { console.warn('[queue-poster] TG failed:', e.message); }
+}
+
 async function runQueuePoster() {
   console.log('\n[queue-poster] Lecture post-queue.json...');
-  const queue = loadQueue();
+  let queue;
+  try {
+    queue = loadQueue();
+  } catch (e) {
+    console.error('[queue-poster] loadQueue failed:', e.message);
+    await notifyTelegram(`❌ *Queue poster* : impossible de charger la queue — ${e.message}`);
+    return;
+  }
+
   const pending = queue.posts.filter(p => !p.posted);
 
   if (pending.length === 0) {
@@ -107,7 +132,16 @@ async function runQueuePoster() {
   saveQueue(queue);
 
   const remaining = pending.length - 1;
+  const fbOk = !!results.fb;
+  const igOk = !!results.ig;
   console.log(`[queue-poster] ✅ Terminé. ${remaining} posts restants dans la queue.`);
+
+  // Telegram summary
+  const statusLine = `FB: ${fbOk ? '✅ ' + results.fb : '⚠️ skip/err'} · IG: ${igOk ? '✅ ' + results.ig : '⚠️ skip/err'}`;
+  await notifyTelegram(
+    `📸 *Queue poster* : ${post.moto}\n${statusLine}\n${remaining} post${remaining !== 1 ? 's' : ''} restant${remaining !== 1 ? 's' : ''}`
+  );
+
   return results;
 }
 
