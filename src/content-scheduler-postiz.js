@@ -119,6 +119,9 @@ async function runContentSchedulerPostiz() {
     const moto = FLEET[i];
     const photos = await listMotoPhotos(moto.slug);
     const photo = pickRotating(photos, weekIdx);
+    if (!photo) {
+      console.warn(`[content-scheduler] no photos found for ${moto.slug} — posting without image`);
+    }
     const caption = await generateCaption(moto);
     const publishAt = new Date(baseMonday.getTime() + i * 86400000).toISOString();
     const r = await schedulePost({ caption, imageUrl: photo, publishAt });
@@ -126,7 +129,7 @@ async function runContentSchedulerPostiz() {
   }
 
   const summary = results.map(r =>
-    `${r.ok ? '✅' : '❌'} ${r.moto}${r.error ? ` (${JSON.stringify(r.error).slice(0,80)})` : ''}`
+    `${r.ok ? '✅' : '❌'} ${r.moto}${!r.photo ? ' ⚠️ no photo' : ''}${r.error ? ` (${JSON.stringify(r.error).slice(0,80)})` : ''}`
   ).join('\n');
   if (TG_BOT && TG_CHAT) {
     try {

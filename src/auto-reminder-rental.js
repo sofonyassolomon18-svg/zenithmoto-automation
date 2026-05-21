@@ -3,27 +3,29 @@
 // SMS skipped: Twilio not configured (cost-gated per spec).
 // Dedupe via Supabase column `reminder_h24_sent` (boolean).
 require('dotenv').config();
-const axios = require('axios');
 const nodemailer = require('nodemailer');
+const { notify } = require('./lib/telegram');
 
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
-const TG_BOT   = process.env.TELEGRAM_BOT_TOKEN;
-const TG_CHAT  = process.env.TELEGRAM_CHAT_ID;
 
 function fmtDate(iso) {
   return new Date(iso).toLocaleDateString('fr-CH', { day: '2-digit', month: 'long', year: 'numeric' });
 }
-function fmtTime(iso) {
-  return new Date(iso).toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
+
+/** Format a time field. Accepts HH:MM string or full ISO datetime. */
+function fmtTime(val) {
+  if (!val) return '';
+  // If it's already HH:MM or HH:MM:SS, return as-is (no Date parsing needed)
+  if (/^\d{2}:\d{2}/.test(val)) return val.slice(0, 5);
+  // ISO datetime — extract time component
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val;
+  return d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
 }
 
 async function notifyTelegram(text) {
-  if (!TG_BOT || !TG_CHAT) return;
-  try {
-    await axios.post(`https://api.telegram.org/bot${TG_BOT}/sendMessage`,
-      { chat_id: TG_CHAT, text, parse_mode: 'Markdown' }, { timeout: 5000 });
-  } catch (e) { console.warn('[auto-reminder] TG failed:', e.message); }
+  await notify(text, 'info', { project: 'zenithmoto' });
 }
 
 function getTransport() {
@@ -88,13 +90,21 @@ async function fetchUpcomingRentals() {
 
 async function markReminderSent(id) {
   try {
-    await fetch(`${SUPA_URL}/rest/v1/bookings?id=eq.${id}`, {
+    const res = await fetch(`${SUPA_URL}/rest/v1/bookings?id=eq.${id}`, {
       method: 'PATCH',
       headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`,
                  'Content-Type': 'application/json', Prefer: 'return=minimal' },
       body: JSON.stringify({ reminder_h24_sent: true }),
     });
-  } catch (e) { console.warn('[auto-reminder] mark failed:', e.message); }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`[auto-reminder] markReminderSent HTTP ${res.status} for booking ${id}: ${body}`);
+      await notify(`[auto-reminder] markReminderSent HTTP ${res.status} booking ${id} — dedupe may re-send`, 'warn', { project: 'zenithmoto' });
+    }
+  } catch (e) {
+    console.error('[auto-reminder] markReminderSent failed:', e.message);
+    await notify(`[auto-reminder] markReminderSent failed: ${e.message}`, 'warn', { project: 'zenithmoto' });
+  }
 }
 
 async function runAutoReminder() {

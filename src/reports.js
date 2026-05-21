@@ -118,14 +118,23 @@ async function sendWeeklyReport() {
   const bookings = loadBookings();
   const html = buildReport(bookings);
 
+  if (!process.env.SMTP_EMAIL || !process.env.GMAIL_APP_PASSWORD) {
+    console.warn('[reports] SMTP not configured — weekly report skipped');
+    return;
+  }
   const transport = getTransport();
-  await transport.sendMail({
-    from: `"ZenithMoto Automation" <${process.env.SMTP_EMAIL}>`,
-    to: process.env.SMTP_EMAIL,
-    subject: `📊 Rapport hebdomadaire ZenithMoto — ${new Date().toLocaleDateString('fr-CH')}`,
-    html,
-  });
-  console.log(`✅ Rapport envoyé à ${process.env.SMTP_EMAIL}`);
+  try {
+    await transport.sendMail({
+      from: `"ZenithMoto Automation" <${process.env.SMTP_EMAIL}>`,
+      to: process.env.SMTP_EMAIL,
+      subject: `📊 Rapport hebdomadaire ZenithMoto — ${new Date().toLocaleDateString('fr-CH')}`,
+      html,
+    });
+    console.log(`✅ Rapport envoyé à ${process.env.SMTP_EMAIL}`);
+  } catch (e) {
+    console.error('[reports] sendWeeklyReport SMTP failed:', e.message);
+    throw e; // propagate so cronError fires TG alert
+  }
 }
 
 // ── Daily KPI Telegram ────────────────────────────────────────────
@@ -150,8 +159,12 @@ async function sendDailyKpiTelegram() {
         if (r.ok) {
           const data = await r.json();
           if (Array.isArray(data) && data.length > 0) bookings = data;
+        } else {
+          console.warn(`[reports] Supabase HTTP ${r.status} — falling back to local bookings`);
         }
-      } catch (_) { /* fall through to local */ }
+      } catch (supaErr) {
+        console.warn('[reports] Supabase fetch failed — falling back to local:', supaErr.message);
+      }
     }
     const now = new Date();
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);

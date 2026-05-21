@@ -2,6 +2,7 @@
 // Reads Supabase `bookings` table, cross-references with FLEET list.
 require('dotenv').config();
 const axios = require('axios');
+const { notify } = require('./lib/telegram');
 
 const SUPA_URL = process.env.SUPABASE_URL;
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
@@ -19,7 +20,10 @@ const FLEET = [
 function dateStr(d) { return d.toISOString().split('T')[0]; }
 
 async function fetchBookingsNext7Days() {
-  if (!SUPA_URL || !SUPA_KEY) return null;
+  if (!SUPA_URL || !SUPA_KEY) {
+    console.warn('[fleet-avail] SUPABASE_URL/KEY absent — skip');
+    return null;
+  }
   const today = new Date();
   const in7 = new Date(today.getTime() + 7 * 86400 * 1000);
   try {
@@ -27,10 +31,16 @@ async function fetchBookingsNext7Days() {
       `${SUPA_URL}/rest/v1/bookings?select=moto_id,moto,motorcycle,start_date,end_date,client_name,status&end_date=gte.${dateStr(today)}&start_date=lte.${dateStr(in7)}&status=neq.cancelled`,
       { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` } }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`[fleet-avail] Supabase HTTP ${res.status}: ${body.slice(0, 200)}`);
+      await notify(`[fleet-avail] Supabase HTTP ${res.status} — digest skipped`, 'warn', { project: 'zenithmoto' });
+      return null;
+    }
     return await res.json();
   } catch (e) {
-    console.warn('[fleet-avail] fetch failed:', e.message);
+    console.error('[fleet-avail] fetch failed:', e.message);
+    await notify(`[fleet-avail] Supabase fetch failed: ${e.message}`, 'warn', { project: 'zenithmoto' });
     return null;
   }
 }

@@ -16,16 +16,28 @@ const PORT = process.env.PORT || process.env.WEBHOOK_PORT || 3001;
 
 function checkEnv() {
   const required = ['GMAIL_APP_PASSWORD', 'SMTP_EMAIL'];
+  const critical = [
+    // Without these, the majority of crons silently skip or degrade
+    'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
+    'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
+  ];
   const optional = [
     'GEMINI_API_KEY', 'GOOGLE_MAPS_API_KEY',
-    'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID',
-    'SUPABASE_URL', 'SUPABASE_SERVICE_KEY',
     'WEBHOOK_SECRET', 'STRIPE_SECRET_KEY',
+    'FACEBOOK_PAGE_ID', 'FACEBOOK_PAGE_ACCESS_TOKEN',
+    'INSTAGRAM_USER_ID', 'INSTAGRAM_ACCESS_TOKEN',
+    'BUFFER_ACCESS_TOKEN',
+    'POSTIZ_API_URL', 'POSTIZ_API_KEY', 'POSTIZ_INTEGRATION_IDS',
   ];
   const missing = required.filter(k => !process.env[k]);
   if (missing.length) {
     console.error('❌ Variables manquantes dans .env:', missing.join(', '));
     process.exit(1);
+  }
+  const missingCritical = critical.filter(k => !process.env[k]);
+  if (missingCritical.length) {
+    console.error('❌ Variables critiques manquantes (crons Supabase/Telegram désactivés):', missingCritical.join(', '));
+    // Non-fatal: service can still handle webhooks, but alert loudly
   }
   const missingOpt = optional.filter(k => !process.env[k]);
   if (missingOpt.length) {

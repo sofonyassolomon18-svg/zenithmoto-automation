@@ -40,7 +40,10 @@ async function runMorningBrief() {
     .eq('start_date', today)
     .in('status', ['confirmed', 'paid', 'active']);
 
-  if (e1) console.warn('[morning-brief] pickups err:', e1.message);
+  if (e1) {
+    console.warn('[morning-brief] pickups err:', e1.message);
+    await notify(`[morning-brief] Supabase pickups query failed: ${e1.message}`, 'warn', { project: 'zenithmoto' });
+  }
 
   // Returns today
   const { data: returns = [], error: e2 } = await supabase
@@ -49,7 +52,10 @@ async function runMorningBrief() {
     .eq('end_date', today)
     .in('status', ['confirmed', 'paid', 'active']);
 
-  if (e2) console.warn('[morning-brief] returns err:', e2.message);
+  if (e2) {
+    console.warn('[morning-brief] returns err:', e2.message);
+    await notify(`[morning-brief] Supabase returns query failed: ${e2.message}`, 'warn', { project: 'zenithmoto' });
+  }
 
   // Revenue MTD
   const { data: mtd = [], error: e3 } = await supabase
@@ -58,7 +64,10 @@ async function runMorningBrief() {
     .gte('start_date', firstOfMonth)
     .in('status', ['confirmed', 'paid', 'active', 'completed']);
 
-  if (e3) console.warn('[morning-brief] mtd err:', e3.message);
+  if (e3) {
+    console.warn('[morning-brief] mtd err:', e3.message);
+    await notify(`[morning-brief] Supabase MTD query failed: ${e3.message}`, 'warn', { project: 'zenithmoto' });
+  }
 
   const revenueMTD = (mtd || []).reduce((s, b) => s + Number(b.amount_total || b.total_amount || b.total_chf || 0), 0);
   const countMTD = (mtd || []).length;
