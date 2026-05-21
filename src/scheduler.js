@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const axios = require('axios');
 const Sentry = require('@sentry/node');
+const { notify } = require('./lib/telegram');
 
 function cronError(name, e) {
   console.error(`CRON ${name} error:`, e.message);
@@ -9,7 +10,7 @@ function cronError(name, e) {
 }
 const { generateAllPosts } = require('./content-generator');
 const { runProspection } = require('./prospection');
-const { checkAndSendReminders, checkAndSendPostRentalReview } = require('./notifications');
+const { checkAndSendReminders, checkAndSendPostRentalReview, checkAndSendJ7Reminders } = require('./notifications');
 const { sendWeeklyReport, sendDailyKpiTelegram, sendWeeklyKpiTelegram } = require('./reports');
 const { runBookingAssistant } = require('./booking-assistant');
 const { runBufferMonitor } = require('./buffer-monitor');
@@ -28,8 +29,6 @@ const { sendOffseasonPromo } = require('./offseason-promo');
 const { sendSeasonOpening } = require('./season-opening');
 const { runNpsDaily } = require('./nps-rental');
 const { runQueuePoster } = require('./jobs/queue-poster');
-const { notify } = require('./lib/telegram');
-const { checkAndSendJ7Reminders } = require('./notifications');
 
 function startScheduler() {
   console.log('⏱️  Scheduler démarré\n');
