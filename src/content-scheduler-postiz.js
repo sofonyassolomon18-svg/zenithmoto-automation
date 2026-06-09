@@ -47,7 +47,7 @@ async function generateCaption(moto) {
   return new Promise((resolve) => {
     try {
       const prompt = `Génère une caption Instagram FR pour location moto ${moto.label} (${moto.specs}). Ton premium aventurier. 3 phrases courtes + 12-15 hashtags suisses pertinents. CTA réservation zenithmoto.ch.`;
-      const proc = spawn('ask-llm', ['--task=caption', prompt], { shell: true });
+      const proc = spawn('ask-llm', ['--task=caption', prompt], { shell: false });
       let out = '';
       let timer = setTimeout(() => { proc.kill(); resolve(generateCaptionFallback(moto)); }, 15000);
       proc.stdout.on('data', d => out += d.toString());

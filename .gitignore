@@ -26,3 +26,4 @@ obsidian_vault/
 # ── OS ─────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+data/bookings.json
