@@ -1,4 +1,8 @@
-# ZenithMoto Automation — Contexte Complet
+# ZenithMoto Automation — V1 (Legacy)
+
+> **V1 = legacy**. Logique booking principale migrée vers V4 (`zenithmoto-automation-v4`).  
+> Contexte global ZM : voir `zenithmoto-site/.claude/CLAUDE.md`.  
+> Ne pas réintroduire features ici — développer dans V4.
 
 ## Qui
 Sofonyas Solomon — projet **ZenithMoto**, agence de location de motos à Bienne/Biel, Suisse.
@@ -32,12 +36,24 @@ logs/
   prospection.csv       → Historique contacts partenaires
 ```
 
-## Cron jobs (timezone: Europe/Zurich)
-- `0 8 * * 1`   → Lundi 08h00 → rapport hebdomadaire
-- `0 9 * * *`   → Chaque jour 09h00 → génération posts social media
-- `30 9 * * 1`  → Lundi 09h30 → prospection partenaires
-- `0 10 * * *`  → Chaque jour 10h00 → rappels réservation J-1
-- `*/4 * * * *` → Toutes 4min → keep-alive Railway
+## Cron jobs critiques (timezone: Europe/Zurich)
+
+28 crons actifs. Les 6 plus importants :
+
+| Schedule | Nom | Rôle |
+|----------|-----|------|
+| `*/15 * * * *` | booking-assistant | IMAP → répond demandes résa entrantes |
+| `0 17 * * *` | reminder-d1 | Email rappel J-1 aux clients (via Supabase edge fn) |
+| `0 8 * * *` | daily-kpi | Brief matinal Telegram (revenus, bookings) |
+| `15 8 * * *` | daily-health | Digest santé Telegram (cron errors, uptime) |
+| `0 18 * * 0` | content-scheduler-postiz | Planifie posts semaine suivante via Postiz |
+| `0 20 * * 0` | weekly-kpi | Rapport hebdo Telegram |
+
+Tous les crons ont `try/catch` → erreur = `cronError()` → Telegram alert + compteur daily-health.
+
+## Dead code (intentionnel)
+- `src/flows/social-avatar-post.js` — HeyGen social, désactivé par env (`HEYGEN_SOCIAL_ENABLED !== 'true'`), ne pas supprimer
+- Buffer publisher — **supprimé** (commit 3bd5ebd). Token expiré, service mort.
 
 ## Webhook Lovable
 - Endpoint : `POST /webhook/booking`
