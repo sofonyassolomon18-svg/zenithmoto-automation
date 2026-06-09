@@ -2,9 +2,11 @@ const cron = require('node-cron');
 const axios = require('axios');
 const Sentry = require('@sentry/node');
 const { notify } = require('./lib/telegram');
+const { runDailyHealth, incrementCronError, markBookingCheck, resetDailyCounters } = require('./jobs/daily-health');
 
 function cronError(name, e) {
   console.error(`CRON ${name} error:`, e.message);
+  incrementCronError();
   if (process.env.SENTRY_DSN) Sentry.captureException(e, { tags: { cron: name } });
   notify(`🚨 ZM Cron [${name}] crashed: ${e.message}`, 'error', { project: 'zenithmoto' }).catch(() => {});
 }
@@ -134,6 +136,7 @@ function startScheduler() {
   cron.schedule('*/15 * * * *', async () => {
     try {
       const r = await runBookingAssistant();
+      markBookingCheck();
       if (r.processed > 0) console.log(`[CRON booking] processed=${r.processed} replied=${r.replied} skipped=${r.skipped} errors=${r.errors}`);
     } catch (e) { cronError('booking', e); }
   }, { timezone: 'Europe/Zurich' });
@@ -224,6 +227,18 @@ function startScheduler() {
     catch (e) {
       cronError('uptime-monitor', e);
     }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Daily health digest — 08:15 (après KPI 8h00 et morning-brief 8h02)
+  cron.schedule('15 8 * * *', async () => {
+    try { await runDailyHealth(); }
+    catch (e) { cronError('daily-health', e); }
+  }, { timezone: 'Europe/Zurich' });
+
+  // Midnight counter reset — réinitialise compteurs journaliers à 00:00
+  cron.schedule('0 0 * * *', () => {
+    resetDailyCounters();
+    console.log('[CRON] daily-health counters reset');
   }, { timezone: 'Europe/Zurich' });
 
   console.log('📅 Tâches programmées :');
