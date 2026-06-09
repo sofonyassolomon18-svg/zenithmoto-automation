@@ -15,7 +15,6 @@ const { runProspection } = require('./prospection');
 const { checkAndSendReminders, checkAndSendPostRentalReview, checkAndSendJ7Reminders } = require('./notifications');
 const { sendWeeklyReport, sendDailyKpiTelegram, sendWeeklyKpiTelegram } = require('./reports');
 const { runBookingAssistant } = require('./booking-assistant');
-const { runBufferMonitor } = require('./buffer-monitor');
 const { recoverAbandonedBookings } = require('./retention');
 const { pollRenders } = require('./poll-renders');
 const { generateSocialAvatarPost } = require('./flows/social-avatar-post');
@@ -92,12 +91,6 @@ function startScheduler() {
   }, { timezone: 'Europe/Zurich' });
 
   // NOTE: morning-brief staggeré à 8h02 pour éviter collision avec daily-kpi (8h00).
-
-  // Buffer token health check — tous les jours à 8h05 (silencieux si OK)
-  cron.schedule('5 8 * * *', async () => {
-    try { await runBufferMonitor(); }
-    catch (e) { cronError('buffer-monitor', e); }
-  }, { timezone: 'Europe/Zurich' });
 
   // Rappel J-1 ZenithMoto site (Lovable Supabase) — tous les jours à 17h00
   // Trigger l'edge function send-reminder-d1 qui envoie les emails de rappel J-1
