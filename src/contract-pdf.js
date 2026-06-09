@@ -198,6 +198,7 @@ function mountRoutes(app) {
   app.get('/contract/sign', async (req, res) => {
     const { token } = req.query;
     if (!token) return res.status(400).send('Token manquant');
+    if (!/^[0-9a-f]{48}$/.test(token)) return res.status(400).send('Token invalide');
     const ct = (await select('contracts', `sign_token=eq.${token}&select=*`))?.[0];
     if (!ct) return res.status(404).send('Contrat introuvable');
     if (ct.status === 'signed') {
@@ -220,6 +221,7 @@ button{width:100%;padding:16px;background:#d4a017;color:#0a0a0a;border:0;border-
   app.post('/contract/sign', express.urlencoded({ extended: true }), async (req, res) => {
     const token = req.body?.token;
     if (!token) return res.status(400).send('Token manquant');
+    if (!/^[0-9a-f]{48}$/.test(token)) return res.status(400).send('Token invalide');
     const ct = (await select('contracts', `sign_token=eq.${token}&select=*`))?.[0];
     if (!ct) return res.status(404).send('Contrat introuvable');
 
