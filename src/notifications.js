@@ -459,7 +459,7 @@ async function checkAndSendPostRentalReview() {
         console.warn(`[post-rental] Impossible de marquer review_request_sent (colonne absente ?) : ${e.message}`);
       }
     } catch (e) {
-      console.error(`[post-rental] Erreur envoi → ${booking.client_email} : ${e.message}`);
+      console.error(`[post-rental] Erreur envoi → ${maskEmail(booking.client_email)} : ${e.message}`);
     }
   }
 }
@@ -894,7 +894,7 @@ function createWebhookServer() {
   app.get('/admin/dlq', (req, res) => {
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+    if (!process.env.ADMIN_TOKEN || (() => { const a = Buffer.from(token || ''); const b = Buffer.from(process.env.ADMIN_TOKEN); return a.length !== b.length || !crypto.timingSafeEqual(a, b); })()) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     try {
@@ -910,7 +910,7 @@ function createWebhookServer() {
   app.post('/admin/damage-charge', async (req, res) => {
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+    if (!process.env.ADMIN_TOKEN || (() => { const a = Buffer.from(token || ''); const b = Buffer.from(process.env.ADMIN_TOKEN); return a.length !== b.length || !crypto.timingSafeEqual(a, b); })()) {
       return res.status(401).json({ error: 'unauthorized' });
     }
     try {
@@ -936,7 +936,7 @@ function createWebhookServer() {
   function _heygenAuth(req, res) {
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-    if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+    if (!process.env.ADMIN_TOKEN || (() => { const a = Buffer.from(token || ''); const b = Buffer.from(process.env.ADMIN_TOKEN); return a.length !== b.length || !crypto.timingSafeEqual(a, b); })()) {
       res.status(401).json({ error: 'unauthorized' });
       return false;
     }

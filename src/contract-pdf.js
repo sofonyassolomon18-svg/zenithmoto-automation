@@ -9,6 +9,17 @@ const { notify } = require('./lib/telegram');
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://edcvmgpcllhszxvthdzx.supabase.co';
 const BUCKET = 'zenithmoto-content';
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://zenithmoto.ch';
+// HTML-escape helper — prevents XSS when interpolating query params / DB data into HTML
+function he(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/[']/g, '&#x27;');
+}
+
+
 
 const I18N = {
   fr: {
@@ -199,9 +210,9 @@ function mountRoutes(app) {
 button{width:100%;padding:16px;background:#d4a017;color:#0a0a0a;border:0;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;margin-top:24px}
 .box{background:#1a1a1a;padding:20px;border-radius:10px;margin-top:16px}</style></head>
 <body><h1>Signature électronique</h1>
-<div class="box"><p>Booking: <strong>${ct.booking_id}</strong></p><p>En cliquant "J'accepte", vous reconnaissez avoir lu le contrat et les CGV. Conforme au droit suisse B2C (<CHF 2'000).</p></div>
+<div class="box"><p>Booking: <strong>${he(ct.booking_id)}</strong></p><p>En cliquant "J'accepte", vous reconnaissez avoir lu le contrat et les CGV. Conforme au droit suisse B2C (<CHF 2'000).</p></div>
 <form method="post" action="/contract/sign">
-<input type="hidden" name="token" value="${token}">
+<input type="hidden" name="token" value="${he(token)}">
 <button type="submit">J'accepte et je signe</button>
 </form></body></html>`);
   });

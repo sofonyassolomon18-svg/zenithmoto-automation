@@ -3,6 +3,7 @@
 // +1 point par location terminée. Récompenses à 5 (-10%) et 10 (1 jour offert).
 // Auto-email FR/DE level-up + auto-Stripe coupon.
 
+const crypto = require('crypto');
 const axios = require('axios');
 const Stripe = require('stripe');
 const nodemailer = require('nodemailer');
@@ -15,6 +16,17 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
 
 function _h() {
   return { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json' };
+}
+
+
+function _isAdmin(req) {
+  const expected = process.env.ADMIN_TOKEN;
+  if (!expected) return false;
+  const h = req.headers['authorization'] || '';
+  const provided = h.startsWith('Bearer ') ? h.slice(7) : '';
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function levelFromPoints(p) {
@@ -179,6 +191,7 @@ async function runLoyaltyDaily() {
 // Endpoint helper
 function mountLoyaltyRoutes(app) {
   app.get('/api/loyalty/:email', async (req, res) => {
+    if (!_isAdmin(req)) return res.status(401).json({ error: 'unauthorized' });
     const email = req.params.email;
     const data = await getLoyalty(email);
     const points = data?.points || 0;

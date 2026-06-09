@@ -11,6 +11,13 @@ const { generate: geminiGenerate } = require('./lib/ai');
 const { analyzeEmail, estimateQuote } = require('./lib/intent');
 const { withCircuit, retry, deadLetter, CircuitOpenError } = require('./lib/circuit-breaker');
 
+function _maskEmail(email) {
+  if (!email || typeof email !== 'string') return '[no-email]';
+  return email.replace(/(.{2}).*(@.*)/, '$1***$2');
+}
+
+
+
 const SMTP_USER = process.env.SMTP_EMAIL || 'zenithmoto.ch@gmail.com';
 const APP_PASS  = process.env.GMAIL_APP_PASSWORD;
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
@@ -179,7 +186,7 @@ async function runBookingAssistant() {
 
         const skip = shouldSkip(fromEmail, subject, parsed.headers);
         if (skip) {
-          console.log(`[booking] uid ${uid} — skip (${skip}): ${fromEmail}`);
+          console.log(`[booking] uid ${uid} — skip (${skip}): ${_maskEmail(fromEmail)}`);
           await client.messageFlagsAdd(`${uid}`, ['\\Seen'], { uid: true });
           stats.skipped++;
           continue;
@@ -211,7 +218,7 @@ async function runBookingAssistant() {
         await client.messageFlagsAdd(`${uid}`, ['\\Seen'], { uid: true });
         await logToSupabase({ uid, fromEmail, subject, intent: analysis.intent, confidence: analysis.confidence, moto: analysis.moto?.key, canQuote: analysis.canQuote }, 'success');
         stats.replied++;
-        console.log(`[booking] uid ${uid} — replied → ${fromEmail} (intent=${analysis.intent} moto=${analysis.moto?.key || '-'} dates=${analysis.dates.length})`);
+        console.log(`[booking] uid ${uid} — replied → ${_maskEmail(fromEmail)} (intent=${analysis.intent} moto=${analysis.moto?.key || '-'} dates=${analysis.dates.length})`);
       } catch (e) {
         stats.errors++;
         console.error(`[booking] uid ${uid} ERR:`, e.message);
