@@ -1,3 +1,17 @@
+/*
+ * License verification flow (Swiss VTS/LCR physical check at pickup):
+ * 1. Client arrives for pickup — staff checks physical permit against declared values
+ *    (declaredLicense + declaredAge stored in bookings table from LicenseGateModal)
+ * 2. Staff calls POST /api/license-verify { booking_id, license_number, license_category, verified: true }
+ * 3. This sets bookings.license_verified_at = NOW() and license_verified_by = 'staff'
+ * 4. Only bookings with license_verified_at populated can proceed to key handover
+ *
+ * This module handles the ASYNC operator notification flow for uploaded permit photos:
+ * - Cron runs every 1h, scans licenses table for status=pending + notified_at=null
+ * - Sends Telegram message with permit photo preview + inline approve/reject buttons
+ * - Operator presses Approve → status = 'approved', verified_at set
+ * - Operator presses Reject → status = 'rejected', booking must be cancelled
+ */
 // license-verify.js — cron 1h: scan pending licenses, notify operator with preview + inline actions
 const axios = require('axios');
 const { select, upsert } = require('./lib/supabase');
